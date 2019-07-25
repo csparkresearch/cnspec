@@ -1,0 +1,18 @@
+<RCC>
+  <qresource prefix="control">
+    <file>document-open.png</file>
+    <file>folder.png</file>
+    <file>saveall.png</file>
+    <file>projectfolder.svg</file>
+    <file>plot.svg</file>
+    <file>minus.svg</file>
+    <file>plus.svg</file>
+    <file>settings.svg</file>
+    <file>reset.svg</file>
+    <file>close.svg</file>
+    <file>saved.svg</file>
+    <file>plots.svg</file>
+    <file>play.svg</file>
+    <file>stop.svg</file>
+  </qresource>
+</RCC>

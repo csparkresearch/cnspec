@@ -1,0 +1,70 @@
+/*
+Authored by: jithinbp@gmail.com for CSMCA software
+*/
+
+*{
+outline:none;
+}
+/* my default stylesheet */
+QMainWindow{background: rgb(56, 102, 115);} 
+QMessageBox {background: #444544;} 
+
+QTabBar {font:16px;} 
+QTabBar::tab { padding:5px 5px; color:#CCCCCC;background: rgb(56, 102, 115);}
+
+QTabBar::tab:selected {color:white; background: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:.7 rgb(126, 197, 220) , stop:1 rgba(0,0,0,100) );} 
+QTabBar::tab:hover{color:white; background:qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 rgba(26, 177, 191,255), stop:1 rgba(100, 100, 200,255) );} 
+
+.deep,#widgets,#additionalParameters,#decayParameters,#saveAllParameters{ background: rgb(57, 79, 99); }
+
+QListWidget{background: rgb(26, 32, 35);color:#FFFFFF;} 
+QListWidget::item:hover{background: #223344;color:#FFFFFF;} 
+
+QLabel,QRadioButton,QRadioButton,QDockWidget{color:#FFFFFF; margin:1px 2px;}
+
+QSlider::groove:horizontal {margin:0px; padding:0px; border:none; background:#DDFDFE; color:#BB7777; height: 4px;}
+QSlider::handle:horizontal {background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #eee, stop:1 #ccc);border: 2px solid #777;width: 13px;margin-top: -3px;margin-bottom: -3px;border-radius: 3px;}
+
+QCheckBox,QPushButton{border:1px solid #424242; padding:2px;color:#000000;background:#CCC;}
+QCheckBox{border:none; margin:3px 0px;}
+
+QCheckBox:hover,QPushButton:hover{background:rgb(26, 177, 191) ; color:white; border-color:#FFFFFF;}
+QCheckBox::disabled,QPushButton::disabled{border:None;background:rgba(100,100,100,50) ; color:#000;}
+#countLabel{border:1px solid green; padding:0px;color:#FFF;background:rgba(0,0,0,0);}
+/*#calibrationButton{border:0px none; padding:0px;color:#FFF;background:rgba(0,0,0,0);}*/
+QPushButton,QPushButton{min-height24px; min-width:30px;}  
+
+
+QComboBox QAbstractItemView::item {
+    border-bottom: 5px solid white; margin:3px;
+}
+QComboBox QAbstractItemView::item:selected {
+    border-bottom: 5px solid black; margin:3px;
+}
+
+QToolTip{
+   background-color: rgb(191, 210, 214);
+    border-bottom: 3px dotted blue;
+    color:#000; 
+
+    padding:4px; border:0px; margin:0px;
+}
+
+QInputDialog {color: black;background-color: rgb(122, 122, 131);}
+
+
+.active{ border:2px solid #ABF9E7;}
+
+QProgressBar::chunk {
+    background-color: #8D465D;
+    width: 5px;
+    margin-right: 0.5px;
+   margin-left:0.5px;
+
+}
+QProgressBar {
+    border-radius: 1px;
+    text-align: center;
+   font-size:1pt;
+  height:3px;
+}
