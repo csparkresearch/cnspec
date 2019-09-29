@@ -2,3 +2,39 @@ AUTOUPDATE_INTERVAL = 10
 STATUS_UPDATE_INTERVAL = 0.3
 CURRENT_UPDATE_INTERVAL = 0.5
 TEMPERATURE_UPDATE_INTERVAL = 2
+
+GAMMAS={
+'60Co':{
+	1118.1:'Comp',
+	963.4:'Comp',
+	209.8:'BS',
+	214.4:'BS',
+	1173.2:'60Ni',
+	1332.49:'60Ni',
+	},
+'137Cs':{
+	661.7:'137Ba',
+	477.3:'Comp',
+	184:'BS'
+	},
+'22Na':{
+	1274.5:'22Ne',
+	511:'Positron Annihilation',
+	340:'Comp',
+	1068:'Comp',
+	213:'BS'
+	}
+}
+ALPHAS={
+'232Th':{
+	6052:'212Bi',
+	8754:'212Po',
+	4012:'232Th',
+	5423.15:'228Th',
+	5685.37:'224Ra',
+	6288:'220Rn',
+	6778.3:'216Po',
+	6089.88:'212Bi',
+	8784.26:'212Po',
+	},
+}

@@ -6,16 +6,19 @@ Authored by: jithinbp@gmail.com for CSMCA software
 outline:none;
 }
 /* my default stylesheet */
-QMainWindow{background: rgb(56, 102, 115);} 
+QMainWindow{background: qlineargradient( x1:0 y1:0, x2:1 y2:0, stop:0 #09203f, stop:1 #537895);} 
 QMessageBox {background: #444544;} 
 
 QTabBar {font:16px;} 
-QTabBar::tab { padding:5px 5px; color:#CCCCCC;background: rgb(56, 102, 115);}
+QTabBar::tab { padding:3px 5px; color:#CCCCCC;background: #07201f;}
 
-QTabBar::tab:selected {color:white; background: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:.7 rgb(126, 197, 220) , stop:1 rgba(0,0,0,100) );} 
-QTabBar::tab:hover{color:white; background:qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 rgba(26, 177, 191,255), stop:1 rgba(100, 100, 200,255) );} 
+QTabBar::tab:selected {color:white; 
+background: qlineargradient( x1:0 y1:0, x2:1 y2:0, stop:0 #537895, stop:1 #09203f);
+border-top: 1px solid qlineargradient( x1:0 y1:0, x2:1 y2:0, stop:0 #937825, stop:1 #99209f);
+} 
+QTabBar::tab:hover{color:white; background: qlineargradient( x1:0 y1:0, x2:1 y2:0, stop:0 #537895, stop:1 #09203f);} 
 
-.deep,#widgets,#additionalParameters,#decayParameters,#saveAllParameters{ background: rgb(57, 79, 99); }
+.deep,#widgets,#additionalParameters,#decayParameters,#saveAllParameters{ background: qlineargradient( x1:0 y1:0, x2:1 y2:0, stop:0 #09203f, stop:1 #537895); }
 
 QListWidget{background: rgb(26, 32, 35);color:#FFFFFF;} 
 QListWidget::item:hover{background: #223344;color:#FFFFFF;} 
@@ -25,10 +28,18 @@ QLabel,QRadioButton,QRadioButton,QDockWidget{color:#FFFFFF; margin:1px 2px;}
 QSlider::groove:horizontal {margin:0px; padding:0px; border:none; background:#DDFDFE; color:#BB7777; height: 4px;}
 QSlider::handle:horizontal {background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #eee, stop:1 #ccc);border: 2px solid #777;width: 13px;margin-top: -3px;margin-bottom: -3px;border-radius: 3px;}
 
-QCheckBox,QPushButton{border:1px solid #424242; padding:2px;color:#000000;background:#CCC;}
+QCheckBox,QPushButton{
+padding:2px; color:#000;
+background:#e4efe9;
+}
+
 QCheckBox{border:none; margin:3px 0px;}
 
-QCheckBox:hover,QPushButton:hover{background:rgb(26, 177, 191) ; color:white; border-color:#FFFFFF;}
+QCheckBox:hover,QPushButton:hover{
+background:qlineargradient( x1:0 y1:0, x2:1 y2:0, stop:0 #537895, stop:1 #09203f);
+color:white;
+border:1px solid #cffef3; 
+}
 QCheckBox::disabled,QPushButton::disabled{border:None;background:rgba(100,100,100,50) ; color:#000;}
 #countLabel{border:1px solid green; padding:0px;color:#FFF;background:rgba(0,0,0,0);}
 /*#calibrationButton{border:0px none; padding:0px;color:#FFF;background:rgba(0,0,0,0);}*/

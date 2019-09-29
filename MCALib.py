@@ -10,6 +10,7 @@ if 'inux' in platform.system(): #Linux based system
 Byte =     struct.Struct("B") # size 1
 ShortInt = struct.Struct("H") # size 2
 Integer=   struct.Struct("I") # size 4
+unpacker = {1:Byte, 2:ShortInt, 4:Integer}
 #ListMode1 = struct.Struct("IHH") # size (4+2)+2      #time(6) + adc(2)
 #ListMode2 = struct.Struct("IHHH") # size (4+2)+2+2   #time(6) + adc(2) + adc(2)
 ListMode1 = struct.Struct("IH") # size (4)+2      #time(4) + adc(2)
@@ -137,6 +138,7 @@ class MCA:
 		self.total_bins = 1024
 		self.bytes_per_bin = 4
 		self.overflow = 0
+		self.activeSpectrum = self.spectrum(1024,4)
 		if 'port' in kwargs:
 			try:
 				self.connected=self.connectToPort(kwargs.get('port',None))
@@ -159,15 +161,29 @@ class MCA:
 					print(a,' is busy')
 
 	class spectrum:
-		def __init__(self,bins,channelSize,listMode=0):
+		offline = False
+		def __init__(self,bins,channelSize,listMode=0,**kwargs):
 			self.bins = bins
+			self.BINS2D = kwargs.get('BINS2D',64)
+			self.SCALE2D = int(self.bins/self.BINS2D)
 			self.channelSize = channelSize
 			self.listMode = listMode
 			self.filename = os.path.join(os.path.expanduser('~'),'MCA_thumbnails',str(time.time())+'.csv')
 			self.calPoly = np.poly1d([1,0])
 			self.calPolyInv = np.poly1d([1,0])
-
+			self.offline = False
+			self.log = False
 			self.clearData()
+			self.xlabel = 'Channel Number'
+			self.ylabel = 'counts'
+			if 'filename' in kwargs:
+				self.loadOfflineData(kwargs.get('filename'))
+		def hasData(self):
+			if self.listMode:
+				b=np.array([a.any() for a in self.data])
+				return b.any()
+			else:
+				return self.data.any()
 
 		def clearData(self):
 			self.overFlow=0
@@ -175,15 +191,17 @@ class MCA:
 			if self.listMode: #Possibly multi-parameter list
 				self.data = [np.zeros(self.bins) for a in range(self.listMode)] # n number of spectrum buffers
 				self.list = [[] for a in range(self.listMode+1)] #Raw list mode data time,adc1,adc2...
+				self.HISTOGRAM2D,_,_ = np.histogram2d([],[],bins=self.BINS2D)
 				#self.listFile = open(self.filename,'wt')
 
 			else: #Single parameter histogram
-				self.data = np.zeros(self.bins)	
+				self.data = np.zeros(self.bins)
 
 		def addRawData(self,data):
 			if not self.listMode: #Histogram data
 				try:
-					for a in range(self.bins): self.data[a] = Integer.unpack(data[a*self.channelSize:a*self.channelSize+self.channelSize])[0]
+					for a in range(self.bins): self.data[a] = unpacker[self.channelSize].unpack(data[a*self.channelSize:a*self.channelSize+self.channelSize])[0]
+
 				except Exception as ex:
 					msg = "Incorrect Number of Bytes Received\n"+ex.message
 					raise RuntimeError(msg)
@@ -213,9 +231,11 @@ class MCA:
 
 						if adc1: self.data[0][adc1]+=1  #Count only non-zero elements
 						if adc2: self.data[1][adc2]+=1  #Count only non-zero elements
-						if 150<adc1<205 and 170<adc2<225:
+						#if 150<adc1<205 and 170<adc2<225:
+						if adc1 and adc2:
 							self.totalCoincidences +=1
-							print('C: ',self.totalCoincidences,', A1,A2: ',sum(self.data[0]),sum(self.data[1]))
+							self.HISTOGRAM2D[int(adc1/self.SCALE2D)][int(adc2/self.SCALE2D)]+=1
+							#print('C: ',self.totalCoincidences,', A1,A2: ',sum(self.data[0]),sum(self.data[1]))
 
 						self.list[1].append(adc1)
 						self.list[2].append(adc2)
@@ -239,9 +259,11 @@ class MCA:
 				self.calPoly = np.poly1d(np.polyfit(points[:,0],points[:,1],len(points)-1))
 				self.calPolyInv = np.poly1d(np.polyfit(points[:,1],points[:,0],len(points)-1))
 				print('calibration range:',self.getCalibratedRange())
+				self.xlabel = 'keV'
 			except Exception as e:
 				print(e)
 				print('Failed to calibrate')
+				self.xlabel = 'Channel Number'
 
 		def getCalibratedRange(self):
 			return [self.calPoly(0),self.calPoly(self.bins)]
@@ -249,16 +271,34 @@ class MCA:
 		def clearCalibration(self):
 			self.calPoly = np.poly1d([1,0])
 			self.calPolyInv = np.poly1d([1,0])
+			self.xlabel = 'Channel Number'
+
+		def setLog(self,log):
+			self.log = log
+			if log: self.ylabel = 'log(counts)'
+			else: self.ylabel = 'counts'
 
 		def getHistogram(self):
 			if not self.listMode: #Histogram mode
-				return self.data
+				if self.log: return np.log10(self.data)
+				else: return self.data
 			elif self.listMode == 1:
-				return self.data[0]
+				if self.log: return np.log10(self.data[0])
+				else: return self.data[0]
 			elif self.listMode == 2:
-				return self.data[0],self.data[1]
-		def xaxis(self):
-			return np.array(range(self.bins))
+				if self.log:
+					return np.log10(self.data[0]),np.log10(self.data[1]) 
+				else:
+					return self.data[0],self.data[1]
+
+			#for a in range(len(self.raw_y)):
+			#	if self.raw_y[a]:self.y[a] = np.log10(self.raw_y[a])
+			#for a in range(len(self.raw_y2)):
+			#	if self.raw_y2[a]:self.y2[a] = np.log10(self.raw_y2[a])
+
+		def xaxis(self,calibrate=True):
+			if calibrate: return self.calPoly(np.array(range(self.bins)))
+			else: return np.array(range(self.bins))
 
 		def loadOfflineData(self,filename):
 			with open(filename) as f:
@@ -297,9 +337,23 @@ class MCA:
 			slope = (ar[:,0][-1] - ar[:,0][0] )/float(self.bins)
 			self.calPoly = np.poly1d([slope , ar[:,0][0]]) #slope, intercept
 			self.calPolyInv = np.poly1d([1/slope,-ar[:,0][0]/slope])
+			self.offline = True
 
 			return True
 
+
+	def getSpectrum(self,**kwargs):
+		'''
+		Fetch spectrum by name, or last active spectrum. (self.activeSpectrum)
+		'''
+		name = kwargs.get('name',False)
+		if not name: # No argument supplied
+			if self.activeSpectrum:
+				return self.activeSpectrum
+			else:
+				print("No offline data found, and  Device connection Status:",self.connected)
+				return False
+		return self.traces.get(name,None)
 
 	def setCalibration(self,points,**kwargs):
 		'''
@@ -308,22 +362,32 @@ class MCA:
 		a1,a2 ...  = channels
 		b1,b2 ...  = energies
 		'''
-
-		name = kwargs.get('name',False)
-		print(self.traces)
-		if len(self.traces)>0: #Data exists.
-			if not name: # No argument supplied			
-				name = list(self.traces.keys())[0] # Set first key as selected option.
-		else:
-			print("No offline data found, and  Device connection Status:",self.connected)
+		spec = self.getSpectrum(**kwargs)
+		if not spec:
 			return False
 
-		self.traces[name].setCalibration(points)
+		spec.setCalibration(points)
 
-	def loadFile(self,filename):
-		self.traces[filename] = self.spectrum(1024,4,0) #Trace is an empty 1K histogram on init
-		self.traces[filename].loadOfflineData(filename)
-		print(self.traces)
+	def loadFile(self,filename,removeCal = False):
+		self.traces[filename] = self.spectrum(1024,4,0,filename = filename) #Trace is an empty 1K histogram on init
+		self.activeSpectrum = self.traces[filename]
+
+	def loadListFile(self,filename,removeCal = False):
+		self.traces[filename] = self.spectrum(1024,4,2)#empty dual list spectrum
+		data = np.loadtxt(filename)
+
+		self.traces[filename].data[0],_ = np.histogram(data[:,1],bins = 1024)
+		self.traces[filename].data[1],_ = np.histogram(data[:,2],bins = 1024)
+
+		self.traces[filename].data[0][0] = 0
+		self.traces[filename].data[1][0] = 0 #Nullify first element
+
+		data = data[ data[:,1]*data[:,2] >0] #Only coincident data.
+		data_2d,_,_ = np.histogram2d(data[:,1],data[:,2],bins=self.traces[filename].BINS2D)
+		self.traces[filename].HISTOGRAM2D = data_2d
+		self.activeSpectrum = self.traces[filename]
+
+
 
 	def __sendInt__(self,val):
 		"""
@@ -468,7 +532,7 @@ class MCA:
 
 			self.CCS_ENABLED = False
 
-		print('MCA: ',subversion, version_number, self.listMode)
+		#print('MCA: ',subversion, version_number, self.listMode)
 
 		if subversion == '8K':
 			print('version 8K')
@@ -502,6 +566,7 @@ class MCA:
 		self.version_number = version_number
 		self.portname = portname
 		self.traces[self.portname] = self.spectrum(self.total_bins,self.bytes_per_bin,self.listMode)
+		self.activeSpectrum = self.traces[self.portname]
 
 		return True
 
@@ -593,6 +658,7 @@ class MCA:
 					self.__get_ack__()
 
 				self.traces[self.portname].addRawData(data)
+				self.activeSpectrum = self.traces[self.portname]
 			except Exception as ex:
 				print(ex, "Communication Error , Function : "+inspect.currentframe().f_code.co_name)
 
@@ -606,21 +672,18 @@ class MCA:
 				self.__get_ack__()
 				if len(data)>2:
 					self.traces[self.portname].addRawData(data)
+					self.activeSpectrum = self.traces[self.portname]
 			except Exception as ex:
 				print(ex, "Communication Error , Function : "+inspect.currentframe().f_code.co_name)
 				return
 
 
 	def getHistogram(self,**kwargs):
-		name = kwargs.get('name',False)
-		if len(self.traces)>0: #Data exists.
-			if not name: # No argument supplied			
-				name = list(self.traces.keys())[0] # Set first key as selected option.
-		else:
-			print("No offline data found.  Device connection Status:",self.connected)
+		spec = self.getSpectrum(**kwargs)
+		if not spec:
 			return False
 
-		return self.traces[name].getHistogram()
+		return spec.getHistogram()
 
 
 	def setThreshold(self,thres):
@@ -770,9 +833,9 @@ class MCA:
 
 		data           Array to dump onto flash. Max size 2048 bytes
 		"""
-		if(len(data)>32):
-			print('length>32 . trimming')
-			data = data[:32]
+		if(len(data)>2048):
+			print('length>2048 . trimming')
+			data = data[:2048]
 		if(type(data)==str):data = [ord(a) for a in data]
 		if len(data)%2==1:data.append(0)
 		try:
@@ -833,7 +896,7 @@ class MCA:
 			else: state  = 0
 			self.__sendByte__(self.EXTERNAL_TRIGGER)
 			self.__sendByte__(self.external_trigger_width if state else 0)
-			self.__get_ack__()			
+			self.__get_ack__()
 		else:
 			print('External low-true gate for coincidence is only available for gamma spectrometer')
 
@@ -856,18 +919,14 @@ class MCA:
 			print('scipy module not found. aborting least square fit.')
 			return None
 
-		name = kwargs.get('name',False)
-		if len(self.traces)>0: #Data exists.
-			if not name: # No argument supplied			
-				name = list(self.traces.keys())[0] # Set first key as selected option.
-		else:
-			print("No offline data found.  Device connection Status:",self.connected)
+		spec = self.getSpectrum(**kwargs)
+		if not spec:
 			return None
 
-		Y = self.traces[name].getHistogram()
+		Y = spec.getHistogram()
 		if len(Y) == 2: #Dual parameter MCA
 			Y = Y[kwargs.get('parameter',1) - 1] # Select the first trace by default
-		X = self.traces[name].xaxis()
+		X = spec.xaxis()
 
 		FIT = {}
 		start,end= region
@@ -930,18 +989,14 @@ class MCA:
 			print('scipy module not found. aborting least square fit.')
 			return None
 
-		name = kwargs.get('name',False)
-		if len(self.traces)>0: #Data exists.
-			if not name: # No argument supplied			
-				name = list(self.traces.keys())[0] # Set first key as selected option.
-		else:
-			print("No offline data found.  Device connection Status:",self.connected)
+		spec = self.getSpectrum(**kwargs)
+		if not spec:
 			return None
 
-		Y = self.traces[name].getHistogram()
+		Y = spec.getHistogram()
 		if len(Y) == 2: #Dual parameter MCA
 			Y = Y[kwargs.get('parameter',1) - 1] # Select the first trace by default
-		X = self.traces[name].xaxis()
+		X = spec.xaxis()
 		FIT = {}
 
 		start,end= region
@@ -993,10 +1048,10 @@ if __name__ == '__main__':
 	a=connect(autoscan=True)
 	print ('version' , a.get_version() ,a.version)
 	print ('------------')
-	a.writeBulkFlash('Gamma #L25 26 April 19......')
-	print(a.readBulkFlash(32))
-	for x in range(10):
-		print(a.getVoltage('LM35'))
+	a.writeBulkFlash('Gammaspec1K 23 Sep 19\n511keV @ 82chan , @35degrees')
+	print(a.readBulkFlash(200))
+	#for x in range(10):
+	#	print(a.getVoltage('LM35'))
 	#a.startHistogram()
 	#while 1:
 	#	a.updateListBuffer()

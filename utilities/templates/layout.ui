@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>917</width>
-    <height>600</height>
+    <width>795</width>
+    <height>578</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -143,7 +143,13 @@
        <property name="frameShadow">
         <enum>QFrame::Raised</enum>
        </property>
-       <layout class="QVBoxLayout" name="verticalLayout" stretch="0,1,0,1,0,0,0,2,2,0,0">
+       <layout class="QVBoxLayout" name="verticalLayout" stretch="0,1,0,0,1,0,0,0,2,2,0,0">
+        <property name="spacing">
+         <number>3</number>
+        </property>
+        <property name="margin">
+         <number>3</number>
+        </property>
         <item>
          <widget class="AnimatedFrame" name="acquisitionFrame">
           <property name="frameShape">
@@ -155,6 +161,9 @@
           <layout class="QGridLayout" name="acquisitionLayout">
            <property name="margin">
             <number>0</number>
+           </property>
+           <property name="spacing">
+            <number>3</number>
            </property>
            <item row="0" column="0">
             <widget class="QPushButton" name="startButton">
@@ -290,6 +299,55 @@
          </widget>
         </item>
         <item>
+         <widget class="QFrame" name="listFrame">
+          <property name="frameShape">
+           <enum>QFrame::StyledPanel</enum>
+          </property>
+          <property name="frameShadow">
+           <enum>QFrame::Raised</enum>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_3">
+           <property name="margin">
+            <number>0</number>
+           </property>
+           <item row="0" column="3">
+            <widget class="QCheckBox" name="plotBEnabled">
+             <property name="text">
+              <string>B</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1" colspan="4">
+            <widget class="QPushButton" name="coincidenceLabel">
+             <property name="text">
+              <string>Coincidence: ?</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="2">
+            <widget class="QCheckBox" name="plotAEnabled">
+             <property name="text">
+              <string>A</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QLabel" name="label">
+             <property name="text">
+              <string>LIST MODE:</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
          <spacer name="verticalSpacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
@@ -304,11 +362,8 @@
         </item>
         <item>
          <layout class="QGridLayout" name="gridLayout">
-          <property name="horizontalSpacing">
+          <property name="spacing">
            <number>3</number>
-          </property>
-          <property name="verticalSpacing">
-           <number>4</number>
           </property>
           <item row="0" column="0" colspan="2">
            <widget class="Line" name="line">
@@ -707,8 +762,8 @@ Colour changes to green for valid loads</string>
    <slot>load()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>90</x>
-     <y>127</y>
+     <x>93</x>
+     <y>120</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -739,8 +794,8 @@ Colour changes to green for valid loads</string>
    <slot>insertRegion()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>205</x>
-     <y>286</y>
+     <x>215</x>
+     <y>306</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -755,8 +810,8 @@ Colour changes to green for valid loads</string>
    <slot>toggleCalibration(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>34</x>
-     <y>422</y>
+     <x>28</x>
+     <y>412</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -772,7 +827,7 @@ Colour changes to green for valid loads</string>
    <hints>
     <hint type="sourcelabel">
      <x>68</x>
-     <y>267</y>
+     <y>287</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -787,8 +842,8 @@ Colour changes to green for valid loads</string>
    <slot>showCalibrationEditor()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>174</x>
-     <y>417</y>
+     <x>203</x>
+     <y>425</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -803,8 +858,8 @@ Colour changes to green for valid loads</string>
    <slot>clear()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>80</x>
-     <y>85</y>
+     <x>83</x>
+     <y>84</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -819,8 +874,8 @@ Colour changes to green for valid loads</string>
    <slot>toggleLog(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>202</x>
-     <y>239</y>
+     <x>207</x>
+     <y>259</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -867,8 +922,8 @@ Colour changes to green for valid loads</string>
    <slot>pause()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>197</x>
-     <y>56</y>
+     <x>232</x>
+     <y>54</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -883,8 +938,8 @@ Colour changes to green for valid loads</string>
    <slot>save()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>145</x>
-     <y>482</y>
+     <x>148</x>
+     <y>470</y>
     </hint>
     <hint type="destinationlabel">
      <x>3</x>
@@ -899,8 +954,8 @@ Colour changes to green for valid loads</string>
    <slot>clearCount()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>117</x>
-     <y>190</y>
+     <x>120</x>
+     <y>178</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -915,8 +970,8 @@ Colour changes to green for valid loads</string>
    <slot>addSelectedPoint()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>237</x>
-     <y>421</y>
+     <x>258</x>
+     <y>435</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -931,8 +986,8 @@ Colour changes to green for valid loads</string>
    <slot>removeRegion()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>236</x>
-     <y>286</y>
+     <x>246</x>
+     <y>306</y>
     </hint>
     <hint type="destinationlabel">
      <x>185</x>
@@ -947,12 +1002,28 @@ Colour changes to green for valid loads</string>
    <slot>autoUpdateEnable(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>165</x>
-     <y>124</y>
+     <x>207</x>
+     <y>117</y>
     </hint>
     <hint type="destinationlabel">
-     <x>-11</x>
+     <x>0</x>
      <y>152</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>coincidenceLabel</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>launch3D()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>237</x>
+     <y>231</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>264</x>
+     <y>250</y>
     </hint>
    </hints>
   </connection>
@@ -991,5 +1062,6 @@ Colour changes to green for valid loads</string>
   <slot>enablePeriodicSpectrumSaving()</slot>
   <slot>showRegionWindow()</slot>
   <slot>autoUpdateEnable(bool)</slot>
+  <slot>launch3D()</slot>
  </slots>
 </ui>

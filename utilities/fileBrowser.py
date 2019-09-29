@@ -134,6 +134,7 @@ class fileBrowser(QtWidgets.QFrame,fileBrowser.Ui_Form):
 
 		self.thumbnailSubdir = kwargs.get('thumbnail_directory','thumbnails')
 		self.loadHistogram = kwargs.get('clickCallback',None)
+		self.loadList = kwargs.get('loadList',None)
 		self.recordToHistory = kwargs.get('recordToHistory',None)
 		self._browserPath = kwargs.get('path',self._browserPath)
 
@@ -158,12 +159,19 @@ class fileBrowser(QtWidgets.QFrame,fileBrowser.Ui_Form):
 			self.comments.append('---------')
 
 	def browseFile(self):
-		filename = QtGui.QFileDialog.getOpenFileName(self," Open a data file", "", "Data Files (*.txt *.csv *.dat)")
+		filename = QtGui.QFileDialog.getOpenFileName(self," Open a histogram data file", "", "Data Files (*.txt *.csv *.dat)")
 		if filename:
 			pcs = filename[0].split('.')
 			if pcs[-1] in self.allowed_extensions:  #check if extension is acceptable 
 				self.loadHistogram(filename[0]) 
 			
+	def browseListFile(self):
+		filename = QtGui.QFileDialog.getOpenFileName(self," Open a List Mode data file", "", "Data Files (*.txt *.csv *.dat)")
+		if filename:
+			pcs = filename[0].split('.')
+			if pcs[-1] in self.allowed_extensions:  #check if extension is acceptable 
+				self.loadList(filename[0])
+
 	def changeDirectory(self):
 		dirname = QtGui.QFileDialog.getExistingDirectory(self,"Load a folder containing data", os.path.expanduser(self._browserPath),  QtGui.QFileDialog.ShowDirsOnly)
 		if not dirname:return
@@ -300,6 +308,8 @@ class fileBrowser(QtWidgets.QFrame,fileBrowser.Ui_Form):
 
 
 	def loadFromFile(self,plot,curves,filename,**kwargs):
+		if os.stat(filename).st_size>100000: #File too big. not histogram.
+			return False
 		with open(filename) as f:
 			comments=''
 			delim = ','

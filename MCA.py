@@ -2,6 +2,7 @@
 
 import os,sys,time
 from utilities.Qt import QtGui, QtCore, QtWidgets
+_translate = QtCore.QCoreApplication.translate
 
 from utilities.templates import ui_layout as layout
 import constants
@@ -16,9 +17,7 @@ class myTimer():
 		T = time.time()
 		dt = T - self.timeout
 		if dt>0: #timeout is ahead of current time 
-			#if self.interval>5:print('reset',self.timeout,dt)
 			self.timeout = T - dt%self.interval + self.interval
-			#if self.interval>5:print(self.timeout)
 			return True
 		return False
 	def progress(self):
@@ -35,6 +34,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 	plot = None
 	vLine = None
 	switchingPlot = False
+	surfacePlot = None
 	def __init__(self, parent=None,**kwargs):
 		super(AppWindow, self).__init__(parent)
 		self.setupUi(self)
@@ -45,7 +45,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 
 		global app
-		self.fileBrowser = fileBrowser(thumbnail_directory = 'MCA_thumbnails',app=app, clickCallback = self.loadPlot,recordToHistory = self.recordToHistory)
+		self.fileBrowser = fileBrowser(thumbnail_directory = 'MCA_thumbnails',app=app, clickCallback = self.loadPlot,recordToHistory = self.recordToHistory, loadList = self.loadList)
 		self.saveLayout.addWidget(self.fileBrowser)
 		
 		#Calibration Menu & storage
@@ -56,19 +56,18 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.calibrationMenu = QtWidgets.QMenu()
 		
 
-		self.x=[];self.raw_x=[];
-		self.y=[];self.raw_y=[];
-		self.y2=[];self.raw_y2=[];
+		self.y=[];
+		self.y2=[];
 		self.spectrumTime = time.time()
-		self.logMode = False
 		self.offlineData  = True
 		self._browserPath = '.'
 		self.saved={}
 		self.thumbList={}
+		self.markers=[]
 
 		# PLOT creation
-		#self.createMainPlot()
-		self.createMainPlot('w','k')
+		self.createMainPlot()
+		#self.createMainPlot('w','k')
 		
 		#Region Widget
 		#self.regionLayout.setAlignment(QtCore.Qt.AlignTop)
@@ -86,13 +85,16 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 		#Define some keyboard shortcuts for ease of use
 		self.shortcutActions={}
-		self.shortcuts={"+":self.summation,"s":self.start,"f":self.fit,"u":self.load,"r":self.insertRegion,"g":self.fitWithTail,"t":self.fitWithTail,"h":self.historyWindow.show,"Ctrl+S":self.save,"o":self.selectDevice}
+		self.shortcuts={"+":self.summation,"s":self.start,"f":self.fit,"u":self.load,"r":self.insertRegion,"g":self.fitWithTail,"t":self.fitWithTail,"h":self.historyWindow.show,"Ctrl+S":self.save,"o":self.selectDevice,"z":self.selectGraph}
 		for a in self.shortcuts:
 			shortcut = QtWidgets.QShortcut(QtGui.QKeySequence(a), self)
 			shortcut.activated.connect(self.shortcuts[a])
 			self.shortcutActions[a] = shortcut
 
+		# Graph selection
 		
+		self.graphSelector = self.graphSelectionDialog()
+
 		# exporter
 		self.exporter = PQG_ImageExporter(self.plot.plotItem)# pg.exporters.ImageExporter(self.plot.plotItem)
 
@@ -105,6 +107,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.autoUpdateTimerInterval.valueChanged['int'].connect(self.setAutoUpdateInterval)
 		self.autoUpdateTimerAction.setDefaultWidget(self.autoUpdateTimerInterval)
 		self.autoUpdateMenu.addAction(self.autoUpdateTimerAction)
+
 
 		self.autoUpdateSettings.setMenu(self.autoUpdateMenu)
 
@@ -136,14 +139,46 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.deviceSelector.setList(self.shortlist,self.p)
 		
 		
-		#self.loadPlot('DATA/bi212_19mA_10min_31mar18/data_240mins.csv')
+		self.loadPlot('DATA/212Bi.csv')
+		#self.showGammaMarkers('137Cs')
 		#self.loadPlot('DATA/eu152.dat')
+		#self.loadList('DATA/list_sample.csv')
 		self.splash.showMessage("<h2><font color='Black'>Ready!</font></h2>", QtCore.Qt.AlignLeft, QtCore.Qt.black)
 		self.splash.pbar.setValue(8)
 
 	def setTheme(self,theme):
 		self.setStyleSheet("")
 		self.setStyleSheet(open(os.path.join(path["themes"],theme+".qss"), "r").read())
+
+	def plotRangeChanged(self,val):
+		Y = self.plot.plotItem.vb.viewRange()[1]
+		H = (Y[1]-Y[0])*.95 + Y[0]
+		for _,a in self.markers:
+			a.setPos(a.x(), H)
+
+	def showAlphaMarkers(self,state):
+		self.showMarkers(constants.ALPHAS,state)
+
+	def showGammaMarkers(self,state):
+		self.showMarkers(constants.GAMMAS,state)
+
+	def showMarkers(self,markerList,state):
+		for a,b in self.markers:
+			self.plot.removeItem(a)
+			self.plot.removeItem(b)
+		self.markers=[]
+		H = self.plot.plotItem.vb.viewRange()[1][1]*.95
+		energies = markerList.get(state,[])
+		for a in energies:
+			line = pg.InfiniteLine(angle=90, movable=False)
+			line.setPos(a)
+			self.plot.addItem(line, ignoreBounds=True)
+			text = pg.TextItem(html='<div style="text-align: center"><span style="color: #FFF;font-size: 7pt;">%.1fkeV</span><br><span style="color: #FF0; font-size: 8pt;">%s</span></div>'%(a,energies[a]), anchor=(-0.1,0),border='w', fill=(0, 0, 100, 100))
+			self.plot.addItem(text)
+			text.setPos(a, H)
+			self.markers.append([line,text])
+
+
 
 	def createMainPlot(self,bg=QtGui.QColor(0,0,0),fg = QtGui.QColor(200,200,200)):
 		#destroy any old plot
@@ -163,12 +198,15 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.plot_area.addWidget(self.plot)
 		self.plot.getAxis('left').setGrid(170)
 		self.plot.getAxis('bottom').setGrid(170); 		self.plot.getAxis('bottom').setLabel('Channel Number')
+		self.plot.sigYRangeChanged.connect(self.plotRangeChanged)
 
 		if bg=='w': #Light background
 			self.pen = pg.mkPen((0,0,0), width=1)
-			self.brush = pg.mkBrush((26, 197, 220,100))
+			self.pen2 = pg.mkPen((255,100,100), width=1)
+			self.brush = pg.mkBrush((26, 197, 220,150))
 		else:
 			self.pen = pg.mkPen((255,255,255), width=1)
+			self.pen2 = pg.mkPen((255,0,0), width=1)
 			self.brush = pg.mkBrush((26, 197, 220,100))
 
 		self.curve = pg.PlotCurveItem(name = 'Data')
@@ -203,7 +241,6 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		
 	def enableCalibration(self):
 		self.calibrateOnOff.setChecked(True)
-		#self.applyCalibration()
 	
 
 	def enableTemperatureMonitor(self,state):
@@ -238,7 +275,18 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		else:
 			self.p = MCALib.connect(autoscan=True)
 		self.decayHandler = decayTools.decayHandler()
+		self.graphSelector.setList(self.p.traces,self.p)
 		if self.p.connected:
+			self.listFrame.hide()
+			if self.p.activeSpectrum.listMode==2:
+				self.listFrame.show()
+				from utilities import plot3DTools
+				if self.surfacePlot: 
+					self.surfacePlot.close()
+					del self.surfacePlot
+				self.surfacePlot = plot3DTools.surface3d(self,self.p.activeSpectrum.HISTOGRAM2D,self.p.activeSpectrum.BINS2D)
+
+
 			try:
 				self.setTotalBins(self.p.total_bins)
 				self.version_number = float(self.p.version[-3:])
@@ -312,7 +360,20 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.themeAction.setDefaultWidget(self.themeBox)
 		menu.addAction(self.themeAction)
 
-		#menu.addAction('Load Eu-152 sample', self.loadEU152)
+		#Alpha Markers
+		self.markerAction = QtWidgets.QWidgetAction(menu)
+		self.markerBox = QtWidgets.QComboBox(); self.markerBox.addItems(['Add Alpha Energy Guides']+list(constants.ALPHAS.keys()))
+		self.markerBox.currentIndexChanged['QString'].connect(self.showAlphaMarkers)
+		self.markerAction.setDefaultWidget(self.markerBox)
+		menu.addAction(self.markerAction)
+		
+		#Gamma Markers
+		self.markerActionG = QtWidgets.QWidgetAction(menu)
+		self.markerBoxG = QtWidgets.QComboBox(); self.markerBoxG.addItems(['Add Gamma Energy Guides']+list(constants.GAMMAS.keys()))
+		self.markerBoxG.currentIndexChanged['QString'].connect(self.showGammaMarkers)
+		self.markerActionG.setDefaultWidget(self.markerBoxG)
+		menu.addAction(self.markerActionG)
+
 
 		#Graph Colour
 		self.traceRow = traceRowWidget(self.curve)
@@ -355,22 +416,13 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 	def showTrendline(self):
 		print('generating trendline')
-		'''
-		ty = np.zeros(len(self.y))
-		MAX = len(self.y)-1
-		i = self.y[MAX-1] #Ignore last channel. probably just pile-up
-		dy = max(self.y)/10000.
-		for a in range(MAX-1,-1,-1):
-			print a,i
-			i+= (self.y[a]-i)*dy
-			ty[a] = i
-		'''
 		order = 2
-		z = np.polyfit(self.x, self.y, order)
+		x= self.p.activeSpectrum.xaxis(self.calibrationEnabled)
+		z = np.polyfit(x, self.y, order)
 		p= np.poly1d(z)
 
 		pen=pg.mkPen('r', width=5)
-		self.trendline.setData(self.x,p(self.x),pen=pen)
+		self.trendline.setData(x,p(x),pen=pen)
 
 	def setAutoUpdateInterval(self,val):
 		self.showStatus("Updated auto-refresh interval to %d seconds"%val,False)
@@ -389,6 +441,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		#		self.dataDump()
 
 		self.locateDevices()
+		#self.setTheme("default")
 		if not self.checkConnectionStatus():return
 		if self.progressBar.isEnabled():
 			self.progressBar.setValue(self.pending['update'].progress())
@@ -415,8 +468,6 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 					T = self.decayHandler.getElapsedTime()
 					for a in vals:
 						a[0].appendPoint (T,a[3])
-						#print a[3],
-					#print ''
 				if self.regionWindow.saveAllCheckbox.isChecked():
 					if self.pending['datadump'].ready():
 						self.dataDump()
@@ -429,15 +480,12 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		if not self.checkConnectionStatus(True):return
 		try:
 			self.p.sync() #Get latest data from the hardware. List/Hist.
-			if self.p.listMode==2:
-					self.raw_y,self.raw_y2 = self.p.getHistogram()
+			if self.p.activeSpectrum.listMode==2:
+					self.y,self.y2 = self.p.activeSpectrum.getHistogram()
+					self.coincidenceLabel.setText('C: %d [%d , %d]'%(self.p.totalCoincidences,sum(self.y),sum(self.y2)) )
 			else: #Single parameter list / histogram.
-				self.raw_y = self.p.getHistogram()
+				self.y = self.p.activeSpectrum.getHistogram()
 
-			self.y = np.copy(self.raw_y)
-			self.y2 = np.copy(self.raw_y2)
-			self.raw_x = np.arange(len(self.raw_y))
-			self.x = self.convert(self.raw_x)
 			#self.showStatus("System Status | Data Refreshed : %s"%time.ctime())
 			m, s = divmod(time.time() - self.startTime, 60)
 			h, m = divmod(m, 60)
@@ -447,7 +495,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			
 			self.offlineData  = False
 
-			self.toggleLog(self.logBox.isChecked())  #Change to log scale if necessary
+			self.refreshPlot()
 			self.recordToHistory(resetTemperature=True)
 
 		except Exception as e:
@@ -459,7 +507,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		TEMP = kwargs.get('temp',self.temperature.get())
 		if kwargs.get('resetTemperature',False):self.temperature.clear()
 
-		self.historyWindow.addSpectrum(np.copy(self.raw_y), time = TIME,temp = TEMP)
+		self.historyWindow.addSpectrum(np.copy(self.y), time = TIME,temp = TEMP)
 
 	def insertRegion(self):
 		R = decayTools.regionWidget(self.plot,self.deleteRegion,self.calPolyInv if self.calibrationEnabled else np.poly1d([1,0]),len(self.regionWindow.regions))
@@ -511,6 +559,59 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			#update the shortlist
 			self.shortlist=L
 
+	####################
+	def selectGraph(self):
+		if self.graphSelector.exec_():
+			print(self.graphSelector.getSelection())
+
+	class graphSelectionDialog(QtWidgets.QDialog):
+		def __init__(self,parent=None):
+			super(AppWindow.graphSelectionDialog, self).__init__(parent)
+			self.button_layout = QtGui.QVBoxLayout()
+			self.setLayout(self.button_layout)
+			self.btns=[]
+			self.doneButton = QtWidgets.QPushButton("Done")
+			self.button_layout.addWidget(self.doneButton)
+			self.doneButton.clicked.connect(self.finished)			
+
+		def setList(self,L,handler):
+			for a in self.btns:
+				a.setParent(None)
+				del a
+			self.btns=[]
+
+			self.button_group = QtWidgets.QButtonGroup()
+
+			#moods[0].setChecked(True)
+			pos=0
+			for i in L:
+				# Add each radio button to the button layout
+				btn = QtWidgets.QRadioButton(i)
+				self.button_layout.addWidget(btn)
+				self.btns.append(btn)
+				if handler:
+					if handler.activeSpectrum == i:
+						btn.setStyleSheet("color:green;")
+				if L[i].offline: #Offline Data
+					btn.setStyleSheet("color:blue;")
+
+				self.button_group.addButton(btn, pos)
+				pos+=1
+
+			# Set the layout of the group box to the button layout
+
+		#Print out the ID & text of the checked radio button
+		def finished(self):
+			if self.button_group.checkedId()!= -1:
+				self.done(QtWidgets.QDialog.Accepted)
+		def getSelection(self):
+			if self.button_group.checkedId()!= -1:
+				return self.button_group.checkedButton().text()
+			else:
+				return False
+		
+	####################
+
 	def selectDevice(self):
 		if self.deviceSelector.exec_():
 			self.initializeCommunications(port = self.deviceSelector.getSelection())
@@ -557,8 +658,6 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		#Print out the ID & text of the checked radio button
 		def finished(self):
 			if self.button_group.checkedId()!= -1:
-				print(self.button_group.checkedId())
-				print(self.button_group.checkedButton().text())
 				self.done(QtWidgets.QDialog.Accepted)
 		def getSelection(self):
 			if self.button_group.checkedId()!= -1:
@@ -608,16 +707,20 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			self.countLabel.setText('Not Connected')
 			return
 		try:
-			if self.p.listMode:
+			if self.p.activeSpectrum.listMode:
 				self.p.sync()
 			state,cnt = self.p.getStatus()
 			self.currentState = state
-			if self.p.listMode:
+			if self.p.activeSpectrum.listMode:
 				T = time.time()-self.startTime
-				if T >= 300 :
-					self.pause()
-					print(" Finished(300Sec) . Coincident: %d , Total : %d"%(self.p.totalCoincidences,cnt))
-					self.showStatus(" Finished(300Sec) . Coincident: %d , Total : %d"%(self.p.totalCoincidences,cnt),True)
+				if self.p.activeSpectrum.listMode ==2:
+					if self.surfacePlot.isVisible():
+						self.surfacePlot.setData(self.p.activeSpectrum.HISTOGRAM2D)
+					self.coincidenceLabel.setText('C: %d [%d , %d]'%(self.p.activeSpectrum.totalCoincidences,sum(self.p.activeSpectrum.data[0]),sum(self.p.activeSpectrum.data[1])) )
+				#if T >= 300 :
+				#	self.pause()
+				#	print(" Finished(300Sec) . Coincident: %d , Total : %d"%(self.p.totalCoincidences,cnt))
+				#	self.showStatus(" Finished(300Sec) . Coincident: %d , Total : %d"%(self.p.totalCoincidences,cnt),True)
 				self.countLabel.setText('%s: %d'%("%d in %dS"%(self.p.totalCoincidences,T) if state else "Paused",cnt))
 			else:
 				self.countLabel.setText('%s: %d'%("Running" if state else "Paused",cnt))
@@ -675,6 +778,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		if reply == QtWidgets.QMessageBox.Yes:
 			self.clearPlot()
 			self.clearAllSums()
+			self.p.activeSpectrum.clearData()
 			self.showStatus("System Status | Data cleared : %s"%time.ctime())
 			if not self.checkConnectionStatus():return
 			self.p.clearHistogram()
@@ -684,7 +788,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 	def clearPlot(self):
 		#if not self.checkConnectionStatus(True):return
-		self.x = [];self.y=[];self.raw_y=[];self.y2=[];self.raw_y2=[];
+		self.y=[];self.y2=[];
 		self.curve.clear();self.curve2.clear();
 		self.trendline.clear();
 		self.clearFits()
@@ -700,80 +804,72 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.fitcurves=[]
 		
 	def showStatus(self,msg,error=None):
-		if error: self.statusBar.setStyleSheet("color:#FF0000")
+		if error: self.statusBar.setStyleSheet("color:#F77")
 		else: self.statusBar.setStyleSheet("color:#000000")
 		self.statusBar.showMessage(msg)
 
 	def toggleLog(self,state):
+		if not self.p: return
+		if not self.p.activeSpectrum: return
+		self.p.activeSpectrum.setLog(state)
 		if state:
 			self.plot.getAxis('left').setLabel('Log(Count)')
-			self.logMode = True
-			for a in range(len(self.raw_y)):
-				if self.raw_y[a]:self.y[a] = np.log10(self.raw_y[a])
-			for a in range(len(self.raw_y2)):
-				if self.raw_y2[a]:self.y2[a] = np.log10(self.raw_y2[a])
 		else:
 			self.plot.getAxis('left').setLabel('Count')
-			self.logMode = False
-			for a in range(len(self.raw_y)):
-				if self.raw_y[a]:self.y[a] = self.raw_y[a]
-			for a in range(len(self.raw_y2)):
-				if self.raw_y2[a]:self.y2[a] = self.raw_y2[a]
+
+		if self.p.activeSpectrum.listMode==2:
+			self.y,self.y2 = self.p.activeSpectrum.getHistogram()
+		else: #Single parameter list / histogram.
+			self.y = self.p.activeSpectrum.getHistogram()
 
 		self.refreshPlot()
 
-	def refreshPlot(self):
-		if not len(self.x):return
-		#print 'rejected: %d , last channel: %d'%(self.y[-2],self.y[-1])
-		#brush=(26, 197, 220,100)
-		#pen=(255,255,255)
-		#if 	self.offlineData:
-		#	brush=(26, 197, 220,100)
-		#	pen=(255,255,255)
-		#	#brush=(0, 20, 255,130)
-		#	#pen=(0, 20, 155,180)
-		self.curve.setData(self.x,self.y[:-1], stepMode=True, fillLevel=0,pen = self.pen,brush=self.brush)#, brush=brush,pen = pen)
-		if self.logMode: yMax = 10
-		else: yMax = max(self.y[:-2])*1.05
+	def launch3D(self):
+		self.surfacePlot.show()
 
-		if self.p.listMode==2:
+	def refreshPlot(self):
+		x = self.p.activeSpectrum.xaxis(self.calibrationEnabled)
+		if self.plotAEnabled.isChecked():
+			self.curve.setData(x,self.y[:-1], stepMode=True, fillLevel=0,pen = self.pen,brush=self.brush)#, brush=brush,pen = pen)
+		else:
+			self.curve.clear()
+		yMax = max(self.y[:-2])*1.05
+
+		if self.p.activeSpectrum.listMode==2:
 			brush=(126, 97, 220,100)
-			self.curve2.setData(self.x,self.y2[:-1], stepMode=True, fillLevel=0, brush=brush,pen = pen)
-			if not self.logMode: yMax = max( max(self.y[:-2]), max(self.y2[:-2]))*1.05
+			if  self.plotBEnabled.isChecked():
+				self.curve2.setData(x,self.y2[:-1], stepMode=True, fillLevel=0, brush=brush,pen = self.pen2)
+			else:
+				self.curve2.clear()
+			yMax = max( max(self.y[:-2]), max(self.y2[:-2]))*1.05
 			
-		self.plot.setLimits(xMax=max(self.x)*1.1,yMax = max(10,yMax)*1.05)
+		self.plot.setLimits(xMax=max(x)*1.1,yMax = max(10,yMax)*1.05)
 		self.plot.setYRange(0,max(10,yMax)*1.05)
 
-		if(self.convert(1)!=1):self.plot.getAxis('bottom').setLabel('keV')
-		else: self.plot.getAxis('bottom').setLabel('Channel Number')
+		self.plot.getAxis('bottom').setLabel(self.p.activeSpectrum.xlabel)
 
 	##################  SUMMATION ROUTINES #################
 	def showRegionWindow(self):
 		self.regionWindow.show()
 		self.regionWindow.activateWindow() #tabWidget.setCurrentWidget(self.additionalParameters)
 	def getData(self):
-		return self.x,self.y
+		return self.p.activeSpectrum.xaxis(self.calibrationEnabled),self.y
 
 	def summationRaw(self):
-		if not len(self.x):return []
 		sums = []
+		x = self.p.activeSpectrum.xaxis(self.calibrationEnabled)
 		for a in self.regionWindow.regions:
 			start,end=a.region.getRegion()
-			start = self.closestIndex(self.x,start)
-			end = self.closestIndex(self.x,end)
-			sums.append([a,self.x[start],self.x[end],sum(self.y[start:end])])
+			start = self.closestIndex(x,start)
+			end = self.closestIndex(x,end)
+			sums.append([a,x[start],x[end],sum(self.y[start:end])])
 		return sums
 
 	def summation(self):
 		vals = self.summationRaw()
 		msg = ''
 		if vals == []: #No regions present / x is empty
-			if not len(self.x):
-				self.acquisitionFrame.color_anim.start()
-				msg = ' Data not available. Please acquire a spectrum or open a file'
-			else:
-				#self.regionLabel.color_anim.start()
-				msg = ' Please select a peak using the region utility. '
+				msg = ' Data Unavailable. Please select a peak using the region utility. '
 
 		for a in vals:
 			region,start,end,count = a
@@ -793,7 +889,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 	def fit(self,**kwargs):
 		#self.calibWindow.show()
 
-		if not len(self.x):
+		if not self.p.activeSpectrum.hasData():
 			QtWidgets.QMessageBox.information(self, 'Data Unavailable ', 'please acquire a spectrum')
 			return
 		elif len(self.regionWindow.regions)==0:
@@ -810,7 +906,8 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			try:
 				if not tail:  # REGULAR GAUSSIAN
 					try:
-						res = fitting.gaussfit(self.x,self.y,R.region.getRegion())
+						x = self.p.activeSpectrum.xaxis(self.calibrationEnabled)
+						res = fitting.gaussfit(x,self.y,R.region.getRegion())
 					except:
 						res = None
 					if res is None:
@@ -822,10 +919,11 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 					fitcurve.setData(Xmore,Y, stepMode=False,fillLevel=0, brush=(126, 197, 220,100)) #Curve
 					#QtWidgets.QMessageBox.critical(self, 'Fit Results', msg)
 					msg = 'Amplitude= %5.1f  Centroid= %5.2f  sigma = %5.2f'%(par[0], par[1], par[2])
-					FIT['channel'] = self.unconvert(par[1])
+					FIT['channel'] = self.p.activeSpectrum.calPolyInv(par[1])
 					fitres.append(FIT)
 				else:
-					res = fitting.gausstailfit(self.x,self.y,R.region.getRegion())
+					x = self.p.activeSpectrum.xaxis(self.calibrationEnabled)
+					res = fitting.gausstailfit(x,self.y,R.region.getRegion())
 					if res is None:
 						continue
 					Xmore,Y,par,FIT = res
@@ -835,7 +933,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 					fitcurve.setData(Xmore,Y, stepMode=False,fillLevel=0, brush=(126, 197, 220,100)) #Curve
 					msg = 'Amplitude= %5.1f  Centroid= %5.2f  S = %5.2f G = %5.2f'%(par[0], par[1], par[2], par[3])
-					FIT['channel'] = self.unconvert(par[1])
+					FIT['channel'] = self.p.activeSpectrum.calPolyInv(par[1])
 					fitres.append(FIT)
 					
 			except Exception as e:
@@ -852,41 +950,27 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 	def toggleCalibration(self,state):
 		self.calibrationEnabled = state
+		self.currentPeak = None			
+		self.clearFits()
+		self.markerarrow.setPos(0,0)
+		x = self.p.activeSpectrum.xaxis(self.calibrationEnabled)
+		
+		self.plot.setLimits(xMax=max(x) );self.plot.setXRange(0,max(x) )
 		if state: #Calibration needs to be applied
-			self.applyCalibration()
+			self.plot.getAxis('bottom').setLabel('Energy (KeV)')
+			self.calibrationChanged.emit(self.p.activeSpectrum.calPoly,self.p.activeSpectrum.calPolyInv)
 		else:
 			'''
 			Calibration reset on the graph. but user defined calibration is not reset to original values.
 			'''
-			calPoly = np.poly1d([1,0])
-			calPolyInv = np.poly1d([1,0])
-			self.currentPeak = None			
-			self.clearFits()
-
-			self.markerarrow.setPos(0,0)
-			self.x = calPoly(self.raw_x)
+			self.calibrationChanged.emit(np.poly1d([1,0]),np.poly1d([1,0])) #reset calibration
 			self.plot.getAxis('bottom').setLabel('Channel Number')
-			self.plot.setLimits(xMax=max(self.x)*1.05 ); self.plot.setXRange(0,max(self.x)*1.05 ); self.plot.setYRange(0,max(self.y)*1.05)
-			self.curve.setData(np.array(self.x),self.y[:-1], stepMode=True, fillLevel=0,pen=self.pen, brush=self.brush)
-			if self.p.listMode==2:
-				print('we are still stuck in list mode')
-				self.curve2.setData(np.array(self.x),self.y2[:-1], stepMode=True, fillLevel=0, brush=(0,0,255,150))
-			self.calibrationChanged.emit(calPoly,calPolyInv)
 
-	def convert(self,ar):
-		if self.calibrationEnabled:
-			calPoly = self.calPoly
-		else:
-			calPoly = np.poly1d([1,0])
-		return calPoly(ar)
-
-	def unconvert(self,ar):
-		if self.calibrationEnabled:
-			calPoly = self.calPolyInv
-		else:
-			calPoly = np.poly1d([1,0])
-		return calPoly(ar)
-
+		self.plot.setLimits(xMax=max(x)*1.05 ); self.plot.setXRange(0,max(x)*1.05 ); self.plot.setYRange(0,max(self.y)*1.05)
+		self.curve.setData(np.array(x),self.y[:-1], stepMode=True, fillLevel=0,pen=self.pen, brush=self.brush)
+		if self.p.activeSpectrum.listMode==2:
+			x = self.p.activeSpectrum.xaxis(self.calibrationEnabled)
+			self.curve2.setData(np.array(x),self.y2[:-1], stepMode=True, fillLevel=0, brush=(0,0,255,150))
 
 	def addSelectedPoint(self):
 		if not self.currentPeak:
@@ -896,51 +980,30 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 
 	def setCalibration(self,**kwargs):
-		if not len(self.x):
+		if not self.p.activeSpectrum.hasData():
 			return
 		###	
 		points = self.calibWindow.getCalibrationPoints()
 		if len(points)>1:
 			self.p.setCalibration(points)
+			self.calibrateOnOff.setToolTip(_translate("MainWindow",'''
+			<html><head/><body>
+			<p><span style=\" font-size:14pt;color:#939\">Polynomial:%s</span></p>
+			<p><span style=\" font-size:12pt;\">Enable/Disable the calibration polynomial.</span></p>
+			<p><span style=\" font-size:12pt;\">Switch to the calibration tab for details</span></p>
+			</body></html>'''%(self.p.activeSpectrum.calPoly)))
+
 		###
-
-		p1 = kwargs.get('p1',self.calPoly)
-		p2 = kwargs.get('p2',self.calPolyInv)
+		self.calibrateOnOff.setChecked(True)
+		self.toggleCalibration(True) # refresh plots etc.
 		msg = kwargs.get('msg','Calibration Enabled')
-		if p1 is not None:
-			self.showStatus(msg)
-			if p1(self.total_bins) > 50e3:  #Wrong calibration possible. Alert user
-				reply = QtWidgets.QMessageBox.question(self, 'Possible Calibration error', 'Full scale range will become %dkeV\nApply this?'%(p1(self.total_bins)), QtWidgets.QMessageBox.Yes, QtWidgets.QMessageBox.No)
-				if reply != QtWidgets.QMessageBox.Yes:
-					self.calibrateOnOff.setChecked(False)
-					self.showStatus(msg,True)
-					p1 = self.calPoly; p2 = self.calPolyInv #Override with previous values
-			self.calPoly=p1;self.calPolyInv=p2
+		self.showStatus(msg,True)
 
-		else:
-			self.calibrateOnOff.setChecked(False)
-			self.showStatus(msg,True)
-		
-		if not self.calibrateOnOff.isChecked():
-			self.calibrateOnOff.setChecked(True)
-		else:
-			self.applyCalibration()
-
-	def applyCalibration(self):
-		self.x = self.calPoly(self.raw_x)
-		self.clearFits()
-
-		self.plot.getAxis('bottom').setLabel('Energy (KeV)')
-		self.plot.setLimits(xMax=max(self.x) );self.plot.setXRange(0,max(self.x) )
-		self.curve.setData(np.array(self.x),self.y[:-1], stepMode=True, fillLevel=0,pen=self.pen, brush=self.brush)
-		if self.p.listMode==2:
-			self.curve.setData(np.array(self.x),self.y[:-1], stepMode=True, fillLevel=0, brush=(0,0,255,150))
-		self.currentPeak=None
-		self.markerarrow.setPos(0,0)
-		self.calibrationChanged.emit(self.calPoly,self.calPolyInv)
 
 	def onClick(self,event):
-		pos = event.scenePos() 
+		if not self.p.activeSpectrum.hasData():return
+		if not len(self.y): return
+		pos = event.scenePos()
 		if self.plot.sceneBoundingRect().contains(pos):
 			mousePoint = self.plot.plotItem.vb.mapSceneToView(pos)
 			index = mousePoint.x()
@@ -948,12 +1011,13 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			#XR = (XR[1]-XR[0])/30.
 			#if(len(self.regions)):
 			#	self.regions[-1].region.setRegion([index-XR,index+XR])
-			if len(self.x):
-				P = (np.abs(self.x - index ) ).argmin()
+			if self.p.activeSpectrum.hasData:
+				x = self.p.activeSpectrum.xaxis(self.calibrationEnabled)
+				P = (np.abs(x - index ) ).argmin()
 
-				self.markerarrow.setPos(self.x[P],self.y[P])
-				self.currentPeak = self.x[P]
-				self.showStatus("Selected Peak  >  X : %.2f(%d) , Y : %.2f"%(self.x[P],P,self.y[P]))
+				self.markerarrow.setPos(x[P],self.y[P])
+				self.currentPeak = x[P]
+				self.showStatus("Selected Peak  >  X : %.2f(%d) , Y : %.2f"%(x[P],P,self.y[P]))
 		else:
 			self.markerarrow.setPos(0,0)
 			self.currentPeak = None
@@ -963,28 +1027,30 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		return (np.abs(arr-val)).argmin()
 
 	def mouseMoved(self,event):
-		if not len(self.x):return
+		if not self.p.activeSpectrum.hasData():return
+		if not len(self.y): return
 		pos = event[0]
 		if self.plot.sceneBoundingRect().contains(pos):
 			mousePoint = self.plot.plotItem.vb.mapSceneToView(pos)
 			index = mousePoint.x()
-			P = self.closestIndex(self.x,index)
-			self.arrow.setPos(self.x[P],self.y[P])
+			x = self.p.activeSpectrum.xaxis(self.calibrationEnabled)
+			P = self.closestIndex(x,index)
+			self.arrow.setPos(x[P],self.y[P])
 			if self.vLine:
 				self.vLine.setPos(mousePoint.x())
 				self.chanLabel.setText('[x=%0.1f, %d]' % (mousePoint.x(), self.y[P]))
 			#self.chanLabel.setPos(mousePoint.x(),self.y[P]+1)
 
 	def save(self):
-		if self.p.listMode:
+		if self.p.activeSpectrum.listMode:
 			from utilities import plotSaveWindow
 			comments = 'List Mode Data (time, ADC code)\n'
-			if self.p.listMode==2:
-				info = plotSaveWindow.AppWindow(self,[[self.p.list[0],self.p.list[1] ]],self.plot,extra=self.p.list[2],comments = comments)
+			if self.p.activeSpectrum.listMode==2:
+				info = plotSaveWindow.AppWindow(self,[[self.p.activeSpectrum.list[0],self.p.activeSpectrum.list[1] ]],self.plot,extra=self.p.activeSpectrum.list[2],comments = comments)
 			else:
-				info = plotSaveWindow.AppWindow(self,[[self.p.list[0],self.p.list[1] ]],self.plot,comments = comments)
+				info = plotSaveWindow.AppWindow(self,[[self.p.activeSpectrum.list[0],self.p.activeSpectrum.list[1] ]],self.plot,comments = comments)
 		else:
-			if not len(self.x):
+			if not self.p.activeSpectrum.hasData():
 				QtWidgets.QMessageBox.critical(self, 'Acquire Data', 'Please acquire some data first!')
 				return
 			from utilities import plotSaveWindow
@@ -998,7 +1064,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 						centroidString = '%.2f keV (channel:%.2f)'%(a['centroid'],a['channel'])
 					comments+="Region: %s\nAmplitude: %.2f\nCentroid: %s\nFWHM: %.3f(%.2f%%)\nArea: %.2f\n-----------"%(a['region'],a['amplitude'],centroidString,a['fwhm'],100*a['fwhm']/a['centroid'],a['area'])
 				#info = plotSaveWindow.AppWindow(self,[[self.x,self.y]]+[a.getData() for a in self.fitcurves],self.plot,comments = comments)
-			info = plotSaveWindow.AppWindow(self,[[self.x,self.y]],self.plot,comments = comments)
+			info = plotSaveWindow.AppWindow(self,[[self.p.activeSpectrum.xaxis(self.calibrationEnabled),self.y]],self.plot,comments = comments)
 		info.show()
 
 
@@ -1009,37 +1075,36 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.tabWidget.setCurrentIndex(0)
 		self.calibrateOnOff.setChecked(False)
 
-
 	def loadFromFile(self,plot,curves,filename,histMode=True):
-		self.p.loadFile(filename)
-		'''
-		state = self.fileBrowser.loadFromFile(plot,curves,filename,histMode=True)
-		if not state:return
-		if not self.removeCalBox.isChecked():
-			self.raw_x = self.fileBrowser.x
-		else:
-			self.raw_x = np.array(range(len(self.fileBrowser.x)))
-		'''
-		self.raw_y = self.p.getHistogram(name = filename)
-		self.raw_x = self.p.traces[filename].xaxis()
-		self.x = np.copy(self.raw_x)
-		self.y = np.copy(self.raw_y)
-
+		self.p.loadFile(filename,self.removeCalBox.isChecked())
+		self.graphSelector.setList(self.p.traces,self.p)
+		#self.y = self.p.activeSpectrum.getHistogram(self.logBox.isChecked()) # No need. The togglelog function will set it.
 		self.toggleLog(self.logBox.isChecked())
-		self.xscale = 1
-		bins = len(self.y)
-		self.setTotalBins(bins)
-		
 		self.clearFits()
 
 		#self.recordToHistory(time = self.spectrumTime)
+
+	def loadList(self,fname):
+		self.offlineData  = True
+		self.showStatus("Loaded File | %s  (Click UPDATE to return)"%fname,True)
+		self.p.loadListFile(fname,self.removeCalBox.isChecked())
+		self.clearPlot()
+		self.toggleLog(self.logBox.isChecked())
+		self.tabWidget.setCurrentIndex(0)
+		self.calibrateOnOff.setChecked(False)
+
+		from utilities import plot3DTools
+		if self.surfacePlot: 
+			self.surfacePlot.close()
+			del self.surfacePlot
+		self.surfacePlot = plot3DTools.surface3d(self,self.p.activeSpectrum.HISTOGRAM2D,self.p.activeSpectrum.BINS2D)
+		self.listFrame.show()
 		
 				
 	def autoScale(self):
-		self.plot.setLimits(xMax=max(self.convert(self.raw_x)),yMax = max(20,max(self.y)*1.1))
-		if(self.xscale != 1):self.plot.getAxis('bottom').setLabel('eV')
-		else: self.plot.getAxis('bottom').setLabel('Channel Number')
-		self.plot.setXRange(0,max(self.convert(self.raw_x)));self.plot.setYRange(0,max(20,max(self.y)*1.1))
+		xMin,xMax = self.p.activeSpectrum.getCalibratedRange()
+		self.plot.setLimits(xMin = xMin, xMax=xMax,yMax = max(20,max(self.y)*1.1))
+		self.plot.setXRange(xMin, xMax);self.plot.setYRange(0,max(20,max(self.y)*1.1))
 
 	############ DATA DUMPING #############
 	def changeDirectory(self):
@@ -1058,7 +1123,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		m, s = divmod(dt, 60)
 		h, m = divmod(m, 60)
 		ST = "%d:%02d:%02d" % (h, m, s)
-		np.savetxt(os.path.join(self.dataDumpPath,'data_%.1fmins'%dt),np.column_stack([self.x,self.y]))
+		np.savetxt(os.path.join(self.dataDumpPath,'data_%.1fmins'%dt),np.column_stack([self.p.activeSpectrum.xaxis(self.calibrationEnabled),self.y]))
 		self.regionWindow.savedSpectraCounter.setValue(self.regionWindow.savedSpectraCounter.value()+1)
 
 	def enablePeriodicSpectrumSaving(self):

@@ -3,6 +3,7 @@ import sys,os,time
 import pyqtgraph as pg
 import numpy as np
 from . templates import ui_view3d as view3d
+from . templates import ui_viewSurface as viewSurface
 
 
 try:
@@ -10,6 +11,32 @@ try:
 	GL_ENABLED = True
 except:
 	GL_ENABLED = False
+
+
+class surface3d(QtGui.QMainWindow, viewSurface.Ui_MainWindow):
+	pointList=[]
+	shaders = ['balloon','shaded','normalColor','heightColor','viewNormalColor','edgeHilight']
+	def __init__(self, parent=None,data_2d=None,BINS=None):
+		super(surface3d, self).__init__(parent)
+		self.setupUi(self)
+		global GL_ENABLED
+		self.GL_ENABLED = GL_ENABLED
+		self.BINS = BINS
+		self.plotView.setCameraPosition(distance=50)
+		self.plot = gl.GLSurfacePlotItem(z=data_2d, shader='shaded', color=(0.5, 0.5, 1, 1))
+		#self.plot.scale(BINS/49., BINS/49., .1)
+		self.plot.translate(-1*BINS/2, -1*BINS/2, 0)
+		self.plotView.addItem(self.plot)
+		self.lastZStep = 0
+
+	def setData(self,data_2d):
+		self.plot.setData(z=data_2d)
+
+	def scaleZ(self,z):
+		delta = z - self.lastZStep
+		self.lastZStep = z
+		if not delta: return
+		self.plot.scale(1., 1., 1+delta/100.)
 
 
 class AppWindow(QtGui.QMainWindow, view3d.Ui_MainWindow):
