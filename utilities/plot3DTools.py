@@ -24,13 +24,41 @@ class surface3d(QtGui.QMainWindow, viewSurface.Ui_MainWindow):
 		self.BINS = BINS
 		self.plotView.setCameraPosition(distance=50)
 		self.plot = gl.GLSurfacePlotItem(z=data_2d, shader='shaded', color=(0.5, 0.5, 1, 1))
+		self.data_2d = data_2d
+
 		#self.plot.scale(BINS/49., BINS/49., .1)
 		self.plot.translate(-1*BINS/2, -1*BINS/2, 0)
 		self.plotView.addItem(self.plot)
 		self.lastZStep = 0
+		
+		self.imageView.setImage(data_2d)
+		self.imageView.setPredefinedGradient('thermal')
+		self.gradientBox.addItems(['flame', 'yellowy', 'bipolar', 'spectrum', 'cyclic', 'greyclip', 'grey','thermal'])
 
+		self.imageView.roi.sigRegionChanged.connect(self.roiChanged)
+
+
+	def changeGradient(self,s):
+		self.imageView.setPredefinedGradient(str(s))
+		
+	def roiChanged(self):
+		axes = (self.imageView.axes['x'], self.imageView.axes['y'])
+		data, coords = self.imageView.roi.getArrayRegion(self.data_2d, self.imageView.imageItem, axes, returnMappedCoords=True)
+		if data is None:
+			return
+
+		# Convert extracted data into 1D plot data
+		if self.imageView.axes['t'] is None:
+			A1 = coords[0][0][0]; A2 = coords[0][0][-1]
+			B1 = coords[-1][0][0]; B2 = coords[-1][0][-1]
+			print(A1,A2,coords)
+			self.labelC.setText('ROI Counts: %d'%(np.sum(data)))
+		
 	def setData(self,data_2d):
+		self.data_2d = data_2d
 		self.plot.setData(z=data_2d)
+		self.imageView.setImage(data_2d)
+
 
 	def scaleZ(self,z):
 		delta = z - self.lastZStep

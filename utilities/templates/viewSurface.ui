@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>585</width>
-    <height>506</height>
+    <width>762</width>
+    <height>481</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -27,7 +27,20 @@
     <property name="bottomMargin">
      <number>4</number>
     </property>
-    <item row="1" column="0" colspan="2">
+    <item row="1" column="1">
+     <widget class="ImageView" name="imageView">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="MinimumExpanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="1">
+     <widget class="QComboBox" name="gradientBox"/>
+    </item>
+    <item row="2" column="0" colspan="4">
      <widget class="QFrame" name="frame">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
@@ -72,7 +85,7 @@
        <item row="0" column="2">
         <widget class="QLabel" name="labelC">
          <property name="text">
-          <string>TextLabel</string>
+          <string>-</string>
          </property>
         </widget>
        </item>
@@ -131,7 +144,7 @@
       </layout>
      </widget>
     </item>
-    <item row="0" column="1">
+    <item row="0" column="3" rowspan="2">
      <widget class="QSlider" name="scaleZSlider">
       <property name="minimum">
        <number>-1000</number>
@@ -156,8 +169,15 @@
       </property>
      </widget>
     </item>
-    <item row="0" column="0">
-     <widget class="GLViewWidget" name="plotView"/>
+    <item row="0" column="2" rowspan="2">
+     <widget class="GLViewWidget" name="plotView">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="MinimumExpanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+     </widget>
     </item>
    </layout>
   </widget>
@@ -167,6 +187,11 @@
    <class>GLViewWidget</class>
    <extends>QGraphicsView</extends>
    <header location="global">pyqtgraph.opengl</header>
+  </customwidget>
+  <customwidget>
+   <class>ImageView</class>
+   <extends>QGraphicsView</extends>
+   <header location="global">pyqtgraph</header>
   </customwidget>
  </customwidgets>
  <resources/>
@@ -178,12 +203,28 @@
    <slot>scaleZ(int)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>572</x>
+     <x>761</x>
      <y>224</y>
     </hint>
     <hint type="destinationlabel">
      <x>593</x>
      <y>235</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>gradientBox</sender>
+   <signal>currentIndexChanged(QString)</signal>
+   <receiver>MainWindow</receiver>
+   <slot>changeGradient(QString)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>76</x>
+     <y>20</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-13</x>
+     <y>28</y>
     </hint>
    </hints>
   </connection>
@@ -194,5 +235,6 @@
   <slot>setPositionLeft(int)</slot>
   <slot>setPositionRight(int)</slot>
   <slot>scaleZ(int)</slot>
+  <slot>changeGradient(QString)</slot>
  </slots>
 </ui>

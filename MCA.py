@@ -139,7 +139,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.deviceSelector.setList(self.shortlist,self.p)
 		
 		
-		self.loadPlot('DATA/212Bi.csv')
+		#self.loadPlot('DATA/212Bi.csv')
 		#self.showGammaMarkers('137Cs')
 		#self.loadPlot('DATA/eu152.dat')
 		#self.loadList('DATA/list_sample.csv')
@@ -919,7 +919,8 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 					fitcurve.setData(Xmore,Y, stepMode=False,fillLevel=0, brush=(126, 197, 220,100)) #Curve
 					#QtWidgets.QMessageBox.critical(self, 'Fit Results', msg)
 					msg = 'Amplitude= %5.1f  Centroid= %5.2f  sigma = %5.2f'%(par[0], par[1], par[2])
-					FIT['channel'] = self.p.activeSpectrum.calPolyInv(par[1])
+					if self.calibrationEnabled: FIT['channel'] = self.p.activeSpectrum.calPolyInv(par[1])
+					else: FIT['channel'] = par[1]
 					fitres.append(FIT)
 				else:
 					x = self.p.activeSpectrum.xaxis(self.calibrationEnabled)
@@ -933,7 +934,8 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 					fitcurve.setData(Xmore,Y, stepMode=False,fillLevel=0, brush=(126, 197, 220,100)) #Curve
 					msg = 'Amplitude= %5.1f  Centroid= %5.2f  S = %5.2f G = %5.2f'%(par[0], par[1], par[2], par[3])
-					FIT['channel'] = self.p.activeSpectrum.calPolyInv(par[1])
+					if self.calibrationEnabled: FIT['channel'] = self.p.activeSpectrum.calPolyInv(par[1])
+					else: FIT['channel'] = par[1]
 					fitres.append(FIT)
 					
 			except Exception as e:
@@ -1098,7 +1100,20 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			self.surfacePlot.close()
 			del self.surfacePlot
 		self.surfacePlot = plot3DTools.surface3d(self,self.p.activeSpectrum.HISTOGRAM2D,self.p.activeSpectrum.BINS2D)
+		A = np.sum(self.p.activeSpectrum.data[0])
+		B = np.sum(self.p.activeSpectrum.data[1])
+		C = np.sum(self.p.activeSpectrum.HISTOGRAM2D)
+		self.surfacePlot.countA.display(A)
+		self.surfacePlot.countB.display(B)
+		self.surfacePlot.countC.display(C)
+
+		self.surfacePlot.labelA.setText('/%d [%.2f%%]'%(A+B,100*A/(A+B)))
+		self.surfacePlot.labelB.setText('/%d [%.2f%%]'%(A+B,100*B/(A+B)))
+
+		self.coincidenceLabel.setText('C: %d [%d , %d]'%(C,A,B) )
+
 		self.listFrame.show()
+		self.surfacePlot.show()
 		
 				
 	def autoScale(self):

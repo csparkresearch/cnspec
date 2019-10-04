@@ -376,8 +376,9 @@ class MCA:
 		self.traces[filename] = self.spectrum(1024,4,2)#empty dual list spectrum
 		data = np.loadtxt(filename)
 
-		self.traces[filename].data[0],_ = np.histogram(data[:,1],bins = 1024)
-		self.traces[filename].data[1],_ = np.histogram(data[:,2],bins = 1024)
+		#data = data[ data[:,1]*data[:,2] >0] #Only coincident data. TODO: REMOVE THIS LINE 
+		self.traces[filename].data[0],_ = np.histogram(data[:,1],bins = 1024,range=(0,1023))
+		self.traces[filename].data[1],_ = np.histogram(data[:,2],bins = 1024,range=(0,1023))
 
 		self.traces[filename].data[0][0] = 0
 		self.traces[filename].data[1][0] = 0 #Nullify first element
