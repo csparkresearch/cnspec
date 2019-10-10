@@ -85,15 +85,12 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 		#Define some keyboard shortcuts for ease of use
 		self.shortcutActions={}
-		self.shortcuts={"+":self.summation,"s":self.start,"f":self.fit,"u":self.load,"r":self.insertRegion,"g":self.fitWithTail,"t":self.fitWithTail,"h":self.historyWindow.show,"Ctrl+S":self.save,"o":self.selectDevice,"z":self.selectGraph}
+		self.shortcuts={"+":self.summation,"s":self.start,"f":self.fit,"u":self.load,"r":self.insertRegion,"g":self.fitWithTail,"t":self.fitWithTail,"h":self.historyWindow.show,"Ctrl+S":self.save,"o":self.selectDevice}
 		for a in self.shortcuts:
 			shortcut = QtWidgets.QShortcut(QtGui.QKeySequence(a), self)
 			shortcut.activated.connect(self.shortcuts[a])
 			self.shortcutActions[a] = shortcut
 
-		# Graph selection
-		
-		self.graphSelector = self.graphSelectionDialog()
 
 		# exporter
 		self.exporter = PQG_ImageExporter(self.plot.plotItem)# pg.exporters.ImageExporter(self.plot.plotItem)
@@ -137,7 +134,6 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		#Auto-Detector
 		self.shortlist=MCALib.getFreePorts(None)
 		self.deviceSelector.setList(self.shortlist,self.p)
-		
 		
 		#self.loadPlot('DATA/212Bi.csv')
 		#self.showGammaMarkers('137Cs')
@@ -275,17 +271,22 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		else:
 			self.p = MCALib.connect(autoscan=True)
 		self.decayHandler = decayTools.decayHandler()
-		self.graphSelector.setList(self.p.traces,self.p)
 		if self.p.connected:
 			self.listFrame.hide()
-			if self.p.activeSpectrum.listMode==2:
-				self.listFrame.show()
-				from utilities import plot3DTools
-				if self.surfacePlot: 
-					self.surfacePlot.close()
-					del self.surfacePlot
-				self.surfacePlot = plot3DTools.surface3d(self,self.p.activeSpectrum.HISTOGRAM2D,self.p.activeSpectrum.BINS2D)
-
+			if self.p.activeSpectrum.datatype=='list':
+				traces = []
+				for b in range(self.p.activeSpectrum.parameters):
+					traces.append('%s:%d'%(self.p.portname,b+1))
+				self.updateTraceList(traces)
+				if self.p.activeSpectrum.parameters==2: #Dual list mode. Open 2D plots
+					self.listFrame.show()
+					from utilities import plot3DTools
+					if self.surfacePlot: 
+						self.surfacePlot.close()
+						del self.surfacePlot
+					self.surfacePlot = plot3DTools.surface3d(self,self.p.activeSpectrum.HISTOGRAM2D,self.p.activeSpectrum.BINS2D)
+			else:
+				self.updateTraceList(['%s'%self.p.portname])
 
 			try:
 				self.setTotalBins(self.p.total_bins)
@@ -319,7 +320,6 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		try:self.pushbutton.setParent(None)
 		except:pass
 		self.pushbutton = QtWidgets.QPushButton('Menu')
-		self.pushbutton.setStyleSheet("height: 13px;padding:3px;color: #FFFFFF;")
 		menu = QtWidgets.QMenu()
 		menu.addAction(self.controlDock.toggleViewAction())
 		menu.addAction(self.historyWindow.toggleViewAction())
@@ -392,8 +392,22 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		menu.addAction('Exit', self.askBeforeQuit)
 
 		self.pushbutton.setMenu(menu)
-		self.statusBar.addPermanentWidget(self.pushbutton)
+		self.extraLayout.addWidget(self.pushbutton)
+		#self.statusBar.addPermanentWidget(self.pushbutton)
 		self.deviceSelector = self.portSelectionDialog()
+
+	def changeActiveTrace(self,s):
+		if self.p.activeSpectrum.datatype=='list':
+			if self.p.activeSpectrum.parameters==2:
+				try:
+					num = int(str(s).split(':')[-1])
+					self.p.activeSpectrum.selectDataset(num-1)
+				except:
+					pass
+	def updateTraceList(self,traces):
+		self.activeTrace.clear()
+		for a in traces:
+			self.activeTrace.addItem(a)
 
 	'''
 	def pileUpRejection(self,state):
@@ -480,11 +494,12 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		if not self.checkConnectionStatus(True):return
 		try:
 			self.p.sync() #Get latest data from the hardware. List/Hist.
-			if self.p.activeSpectrum.listMode==2:
-					self.y,self.y2 = self.p.activeSpectrum.getHistogram()
-					self.coincidenceLabel.setText('C: %d [%d , %d]'%(self.p.totalCoincidences,sum(self.y),sum(self.y2)) )
+			if self.p.activeSpectrum.datatype=='list':
+					self.y = self.p.activeSpectrum.getHistogram(trace=0)
+					if self.p.activeSpectrum.parameters==2: #fetch second one as well
+						self.y2 = self.p.activeSpectrum.getHistogram(trace=1)
 			else: #Single parameter list / histogram.
-				self.y = self.p.activeSpectrum.getHistogram()
+				self.y = self.p.activeSpectrum.getHistogram(trace=0)
 
 			#self.showStatus("System Status | Data Refreshed : %s"%time.ctime())
 			m, s = divmod(time.time() - self.startTime, 60)
@@ -510,7 +525,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.historyWindow.addSpectrum(np.copy(self.y), time = TIME,temp = TEMP)
 
 	def insertRegion(self):
-		R = decayTools.regionWidget(self.plot,self.deleteRegion,self.calPolyInv if self.calibrationEnabled else np.poly1d([1,0]),len(self.regionWindow.regions))
+		R = decayTools.regionWidget(self.plot,self.deleteRegion,self.p.activeSpectrum.calPolyInv if self.calibrationEnabled else np.poly1d([1,0]),len(self.regionWindow.regions))
 		self.calibrationChanged.connect(R.updateCalibration)
 		self.regionWindow.widgetLayout.addWidget(R)
 		self.regionWindow.regions.append(R)
@@ -559,56 +574,6 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			#update the shortlist
 			self.shortlist=L
 
-	####################
-	def selectGraph(self):
-		if self.graphSelector.exec_():
-			print(self.graphSelector.getSelection())
-
-	class graphSelectionDialog(QtWidgets.QDialog):
-		def __init__(self,parent=None):
-			super(AppWindow.graphSelectionDialog, self).__init__(parent)
-			self.button_layout = QtGui.QVBoxLayout()
-			self.setLayout(self.button_layout)
-			self.btns=[]
-			self.doneButton = QtWidgets.QPushButton("Done")
-			self.button_layout.addWidget(self.doneButton)
-			self.doneButton.clicked.connect(self.finished)			
-
-		def setList(self,L,handler):
-			for a in self.btns:
-				a.setParent(None)
-				del a
-			self.btns=[]
-
-			self.button_group = QtWidgets.QButtonGroup()
-
-			#moods[0].setChecked(True)
-			pos=0
-			for i in L:
-				# Add each radio button to the button layout
-				btn = QtWidgets.QRadioButton(i)
-				self.button_layout.addWidget(btn)
-				self.btns.append(btn)
-				if handler:
-					if handler.activeSpectrum == i:
-						btn.setStyleSheet("color:green;")
-				if L[i].offline: #Offline Data
-					btn.setStyleSheet("color:blue;")
-
-				self.button_group.addButton(btn, pos)
-				pos+=1
-
-			# Set the layout of the group box to the button layout
-
-		#Print out the ID & text of the checked radio button
-		def finished(self):
-			if self.button_group.checkedId()!= -1:
-				self.done(QtWidgets.QDialog.Accepted)
-		def getSelection(self):
-			if self.button_group.checkedId()!= -1:
-				return self.button_group.checkedButton().text()
-			else:
-				return False
 		
 	####################
 
@@ -707,21 +672,31 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			self.countLabel.setText('Not Connected')
 			return
 		try:
-			if self.p.activeSpectrum.listMode:
+			if self.p.activeSpectrum.datatype=='list':
 				self.p.sync()
 			state,cnt = self.p.getStatus()
 			self.currentState = state
-			if self.p.activeSpectrum.listMode:
+			if self.p.activeSpectrum.datatype=='list':
 				T = time.time()-self.startTime
-				if self.p.activeSpectrum.listMode ==2:
+				if self.p.activeSpectrum.parameters==2:
+					A = np.sum(self.p.activeSpectrum.spectra[0].data)
+					B = np.sum(self.p.activeSpectrum.spectra[1].data)
+					C = self.p.activeSpectrum.totalCoincidences
+
 					if self.surfacePlot.isVisible():
 						self.surfacePlot.setData(self.p.activeSpectrum.HISTOGRAM2D)
-					self.coincidenceLabel.setText('C: %d [%d , %d]'%(self.p.activeSpectrum.totalCoincidences,sum(self.p.activeSpectrum.data[0]),sum(self.p.activeSpectrum.data[1])) )
-				#if T >= 300 :
-				#	self.pause()
-				#	print(" Finished(300Sec) . Coincident: %d , Total : %d"%(self.p.totalCoincidences,cnt))
-				#	self.showStatus(" Finished(300Sec) . Coincident: %d , Total : %d"%(self.p.totalCoincidences,cnt),True)
-				self.countLabel.setText('%s: %d'%("%d in %dS"%(self.p.totalCoincidences,T) if state else "Paused",cnt))
+						self.surfacePlot.countA.display(A)
+						self.surfacePlot.countB.display(B)
+						self.surfacePlot.countC.display(C)
+
+						self.surfacePlot.labelA.setText('/%d [%.2f%%]'%(A+B,100*A/(A+B)))
+						self.surfacePlot.labelB.setText('/%d [%.2f%%]'%(A+B,100*B/(A+B)))
+
+						self.coincidenceLabel.setText('C: %d [%d , %d]'%(C,A,B) )
+
+
+					self.coincidenceLabel.setText('C: %d [%d , %d]'%(self.p.activeSpectrum.totalCoincidences,A,B) )
+				self.countLabel.setText('%s: %d'%("%d in %dS"%(self.p.activeSpectrum.totalCoincidences,T) if state else "Paused",cnt))
 			else:
 				self.countLabel.setText('%s: %d'%("Running" if state else "Paused",cnt))
 		except Exception as e:
@@ -817,10 +792,12 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		else:
 			self.plot.getAxis('left').setLabel('Count')
 
-		if self.p.activeSpectrum.listMode==2:
-			self.y,self.y2 = self.p.activeSpectrum.getHistogram()
+		if self.p.activeSpectrum.datatype=='list':
+			self.y = self.p.activeSpectrum.getHistogram(trace=0)
+			if self.p.activeSpectrum.parameters==2:
+				self.y2 = self.p.activeSpectrum.getHistogram(trace=1)
 		else: #Single parameter list / histogram.
-			self.y = self.p.activeSpectrum.getHistogram()
+			self.y = self.p.activeSpectrum.getHistogram(trace=0)
 
 		self.refreshPlot()
 
@@ -835,18 +812,19 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			self.curve.clear()
 		yMax = max(self.y[:-2])*1.05
 
-		if self.p.activeSpectrum.listMode==2:
-			brush=(126, 97, 220,100)
-			if  self.plotBEnabled.isChecked():
-				self.curve2.setData(x,self.y2[:-1], stepMode=True, fillLevel=0, brush=brush,pen = self.pen2)
-			else:
-				self.curve2.clear()
-			yMax = max( max(self.y[:-2]), max(self.y2[:-2]))*1.05
+		if self.p.activeSpectrum.datatype=='list':
+			if self.p.activeSpectrum.parameters ==2:
+				brush=(126, 97, 220,100)
+				if  self.plotBEnabled.isChecked():
+					self.curve2.setData(x,self.y2[:-1], stepMode=True, fillLevel=0, brush=brush,pen = self.pen2)
+				else:
+					self.curve2.clear()
+				yMax = max( max(self.y[:-2]), max(self.y2[:-2]))*1.05
 			
 		self.plot.setLimits(xMax=max(x)*1.1,yMax = max(10,yMax)*1.05)
 		self.plot.setYRange(0,max(10,yMax)*1.05)
 
-		self.plot.getAxis('bottom').setLabel(self.p.activeSpectrum.xlabel)
+		self.plot.getAxis('bottom').setLabel(self.p.activeSpectrum.get_xlabel())
 
 	##################  SUMMATION ROUTINES #################
 	def showRegionWindow(self):
@@ -902,12 +880,13 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 		self.clearFits()
 
+		YDATA = self.p.activeSpectrum.getHistogram()
 		for R in self.regionWindow.regions:
 			try:
 				if not tail:  # REGULAR GAUSSIAN
 					try:
 						x = self.p.activeSpectrum.xaxis(self.calibrationEnabled)
-						res = fitting.gaussfit(x,self.y,R.region.getRegion())
+						res = fitting.gaussfit(x,YDATA,R.region.getRegion())
 					except:
 						res = None
 					if res is None:
@@ -924,7 +903,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 					fitres.append(FIT)
 				else:
 					x = self.p.activeSpectrum.xaxis(self.calibrationEnabled)
-					res = fitting.gausstailfit(x,self.y,R.region.getRegion())
+					res = fitting.gausstailfit(x,YDATA,R.region.getRegion())
 					if res is None:
 						continue
 					Xmore,Y,par,FIT = res
@@ -955,7 +934,8 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.currentPeak = None			
 		self.clearFits()
 		self.markerarrow.setPos(0,0)
-		x = self.p.activeSpectrum.xaxis(self.calibrationEnabled)
+
+		x = self.p.activeSpectrum.xaxis(self.calibrationEnabled,trace=0) #first trace
 		
 		self.plot.setLimits(xMax=max(x) );self.plot.setXRange(0,max(x) )
 		if state: #Calibration needs to be applied
@@ -970,9 +950,10 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 		self.plot.setLimits(xMax=max(x)*1.05 ); self.plot.setXRange(0,max(x)*1.05 ); self.plot.setYRange(0,max(self.y)*1.05)
 		self.curve.setData(np.array(x),self.y[:-1], stepMode=True, fillLevel=0,pen=self.pen, brush=self.brush)
-		if self.p.activeSpectrum.listMode==2:
-			x = self.p.activeSpectrum.xaxis(self.calibrationEnabled)
-			self.curve2.setData(np.array(x),self.y2[:-1], stepMode=True, fillLevel=0, brush=(0,0,255,150))
+		if self.p.activeSpectrum.datatype=='list':
+			if self.p.activeSpectrum.parameters==2:
+				x = self.p.activeSpectrum.xaxis(self.calibrationEnabled,trace=1) #xaxis for second plot.
+				self.curve2.setData(np.array(x),self.y2[:-1], stepMode=True, fillLevel=0, brush=(0,0,255,150))
 
 	def addSelectedPoint(self):
 		if not self.currentPeak:
@@ -1044,13 +1025,10 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			#self.chanLabel.setPos(mousePoint.x(),self.y[P]+1)
 
 	def save(self):
-		if self.p.activeSpectrum.listMode:
+		if self.p.activeSpectrum.datatype=='list':
 			from utilities import plotSaveWindow
-			comments = 'List Mode Data (time, ADC code)\n'
-			if self.p.activeSpectrum.listMode==2:
-				info = plotSaveWindow.AppWindow(self,[[self.p.activeSpectrum.list[0],self.p.activeSpectrum.list[1] ]],self.plot,extra=self.p.activeSpectrum.list[2],comments = comments)
-			else:
-				info = plotSaveWindow.AppWindow(self,[[self.p.activeSpectrum.list[0],self.p.activeSpectrum.list[1] ]],self.plot,comments = comments)
+			comments = 'Histogram (X, Y)\n'
+			info = plotSaveWindow.AppWindow(self,[[self.p.activeSpectrum.xaxis(self.calibrationEnabled),self.p.activeSpectrum.getHistogram()]],self.plot,comments = comments)
 		else:
 			if not self.p.activeSpectrum.hasData():
 				QtWidgets.QMessageBox.critical(self, 'Acquire Data', 'Please acquire some data first!')
@@ -1079,10 +1057,12 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 	def loadFromFile(self,plot,curves,filename,histMode=True):
 		self.p.loadFile(filename,self.removeCalBox.isChecked())
-		self.graphSelector.setList(self.p.traces,self.p)
 		#self.y = self.p.activeSpectrum.getHistogram(self.logBox.isChecked()) # No need. The togglelog function will set it.
 		self.toggleLog(self.logBox.isChecked())
 		self.clearFits()
+
+		head, tail = os.path.split(filename)
+		self.updateTraceList(['%s'%tail])
 
 		#self.recordToHistory(time = self.spectrumTime)
 
@@ -1090,6 +1070,12 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.offlineData  = True
 		self.showStatus("Loaded File | %s  (Click UPDATE to return)"%fname,True)
 		self.p.loadListFile(fname,self.removeCalBox.isChecked())
+		
+		traces = []
+		head, tail = os.path.split(self.p.activeSpectrum.filename)
+		for b in range(self.p.activeSpectrum.parameters):
+			traces.append('%s:%d'%(tail,b+1))
+		self.updateTraceList(traces)
 		self.clearPlot()
 		self.toggleLog(self.logBox.isChecked())
 		self.tabWidget.setCurrentIndex(0)
@@ -1100,8 +1086,8 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			self.surfacePlot.close()
 			del self.surfacePlot
 		self.surfacePlot = plot3DTools.surface3d(self,self.p.activeSpectrum.HISTOGRAM2D,self.p.activeSpectrum.BINS2D)
-		A = np.sum(self.p.activeSpectrum.data[0])
-		B = np.sum(self.p.activeSpectrum.data[1])
+		A = np.sum(self.p.activeSpectrum.spectra[0].data)
+		B = np.sum(self.p.activeSpectrum.spectra[1].data)
 		C = np.sum(self.p.activeSpectrum.HISTOGRAM2D)
 		self.surfacePlot.countA.display(A)
 		self.surfacePlot.countB.display(B)
@@ -1115,6 +1101,12 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.listFrame.show()
 		self.surfacePlot.show()
 		
+	def setListSaveFilename(self):
+		path, _filter  = QtWidgets.QFileDialog.getSaveFileName(self, 'Specify filename to dump list data', '~/')
+		if path:
+			if self.p.activeSpectrum.datatype == 'list':
+				self.p.activeSpectrum.setOutputFilename(path)
+				self.showStatus("List data being saved to:%s"%(path))
 				
 	def autoScale(self):
 		xMin,xMax = self.p.activeSpectrum.getCalibratedRange()

@@ -83,6 +83,278 @@ def getFreePorts(openPort=None):
 	return portlist
 
 
+
+
+class spectrum:
+	datatype = 'histogram'
+	offline = False
+	def __init__(self,bins,channelSize,**kwargs):
+		self.bins = bins
+		self.channelSize = channelSize
+		self.calPoly = np.poly1d([1,0])
+		self.calPolyInv = np.poly1d([1,0])
+		self.offline = False
+		self.log = False
+		self.clearData()
+		self.xlabel = 'Channel Number'
+		self.ylabel = 'counts'
+		if 'filename' in kwargs:
+			self.loadFile(kwargs.get('filename'))
+
+	def get_xlabel(self,**kwargs):
+		return self.xlabel
+
+	def hasData(self):
+		return self.data.any()
+
+	def clearData(self):
+		self.overFlow=0
+		self.data = np.zeros(self.bins)
+
+	def addRawData(self,data):
+		try:
+			for a in range(self.bins): self.data[a] = unpacker[self.channelSize].unpack(data[a*self.channelSize:a*self.channelSize+self.channelSize])[0]
+
+		except Exception as ex:
+			msg = "Incorrect Number of Bytes Received\n"+ex.message
+			raise RuntimeError(msg)
+		self.overFlow = self.data[self.bins-1] #store info about last channel
+		self.data[self.bins-1] = 0 #Make last channel 0
+		self.data[511] = np.average([self.data[510],self.data[512]]) # adc correction
+		self.data[255] = np.average([self.data[254],self.data[256]])
+		self.data[127] = np.average([self.data[126],self.data[128]])
+
+	def setCalibration(self,points,**kwargs):
+		'''
+		Prepares a calibration polynomial from channel numbers and corresponding energies
+		[ [a1,b1] , [a2,b2] ...]
+		a1,a2 ...  = channels
+		b1,b2 ...  = energies
+		'''
+
+		try:
+			self.calPoly = np.poly1d(np.polyfit(points[:,0],points[:,1],len(points)-1))
+			self.calPolyInv = np.poly1d(np.polyfit(points[:,1],points[:,0],len(points)-1))
+			print('calibration range:',self.getCalibratedRange())
+			self.xlabel = 'keV'
+		except Exception as e:
+			print(e)
+			print('Failed to calibrate')
+			self.xlabel = 'Channel Number'
+
+	def getCalibratedRange(self,**kwargs):
+		return [self.calPoly(0),self.calPoly(self.bins)]
+			
+	def clearCalibration(self):
+		self.calPoly = np.poly1d([1,0])
+		self.calPolyInv = np.poly1d([1,0])
+		self.xlabel = 'Channel Number'
+
+	def setLog(self,log):
+		self.log = log
+		if log: self.ylabel = 'log(counts)'
+		else: self.ylabel = 'counts'
+
+	def getHistogram(self,**kwargs):
+		if self.log: return np.log10(self.data)
+		else: return self.data
+
+	def xaxis(self,calibrate=True,**kwargs):
+		if calibrate: return self.calPoly(np.array(range(self.bins)))
+		else: return np.array(range(self.bins))
+
+	def loadFile(self,filename):
+		with open(filename) as f:
+			comments=''
+			delim = ','
+			while True:
+				header = f.readline()
+				if header[0]=='#':
+					comments+=header[1:]
+					continue
+				data1 = header.strip()
+				if ',' in data1:
+					delim = ','
+				elif '  ' in data1:
+					delim = '  '
+				elif '\t' in data1:
+					delim = '\t'
+				else:
+					delim = ' '
+				break
+			print ('Loading : %s\n------\nComment: %s\n------\n\n'%(filename,comments))
+			if re.search('[a-df-zA-DF-Z]', header): #Header has letters
+				ar = np.loadtxt(filename,skiprows=1,delimiter=delim)
+			else:
+				try:
+					ar = np.loadtxt(filename,delimiter=delim)
+				except Exception as e:
+					logging.exception(e)					
+					print('error loading:',filename,delim,e)
+					return False
+
+
+		self.data =ar[:,1]
+		self.bins = len(self.data)
+		slope = (ar[:,0][-1] - ar[:,0][0] )/float(self.bins)
+		self.calPoly = np.poly1d([slope , ar[:,0][0]]) #slope, intercept
+		self.calPolyInv = np.poly1d([1/slope,-ar[:,0][0]/slope])
+		self.offline = True
+
+		return True
+
+	def selectDataset(self,trace):
+		pass
+
+
+
+
+class listSpectrum:
+	offline = False
+	datatype = 'list'
+	def __init__(self,bins,channelSize,parameters=2,**kwargs):
+		self.bins = bins
+		self.totalCoincidences=0
+		self.BINS2D = kwargs.get('BINS2D',64)
+		self.SCALE2D = int(self.bins/self.BINS2D)
+		self.channelSize = channelSize
+		self.parameters = parameters
+		self.saveFilename = None#os.path.join(os.path.expanduser('~'),'MCA_thumbnails',str(time.time())+'.csv')
+		self.listFile = None
+		self.spectra = [spectrum(bins,channelSize) for a in range(parameters)]
+		self.activeDataset = 0 #default is first trace.
+		self.offline = False
+		self.xlabel = 'Channel Number'
+		self.ylabel = 'counts'
+		self.lastTime = 0
+		self.clearData()
+
+		if 'filename' in kwargs:
+			self.loadFile(kwargs.get('filename'))
+
+	def setOutputFilename(self,fname):
+		self.saveFilename = fname
+		self.listFile = open(fname,'wt')
+
+	def selectDataset(self,trace):
+		if trace>=self.parameters:
+			print('exceeded parameter range. Max:',self.parameters)
+			return False
+		self.activeDataset = trace
+
+	def calPoly(self,v):
+		return self.spectra[self.activeDataset].calPoly(v)
+	def calPolyInv(self,v):
+		return self.spectra[self.activeDataset].calPolyInv(v)
+
+	def get_xlabel(self,**kwargs):
+		activeDataset = kwargs.get('trace',self.activeDataset)
+		self.spectra[activeDataset].get_xlabel()
+
+	def hasData(self):
+		for a in self.spectra:
+			if a.hasData(): return True
+		return False
+
+	def clearData(self):
+		self.overFlow=0
+		self.totalCoincidences = 0
+		self.HISTOGRAM2D,_,_ = np.histogram2d([],[],bins=self.BINS2D)
+		#self.list = [[] for a in range(self.parameters+1)]
+		self.lastTime = 0
+		for a in self.spectra:
+			a.clearData()
+		if self.saveFilename:
+			self.listFile = open(self.saveFilename,'wt')
+
+	def addRawData(self,data):
+		width = 2*(self.parameters+2)
+		for a in range(int(len(data)/width)):
+			start = a*width
+			if self.parameters==1:
+				t,adc = ListMode1.unpack(data[start:start+width]) #IH
+				self.spectra[0].data[adc] +=1
+				self.spectra[0].data[0] = 0
+				
+				self.spectra[0].data[511] = np.average([self.spectra[0].data[510],self.spectra[0].data[512]]) # adc correction
+				self.spectra[0].data[255] = np.average([self.spectra[0].data[254],self.spectra[0].data[256]])
+				self.spectra[0].data[127] = np.average([self.spectra[0].data[126],self.spectra[0].data[128]])
+
+			elif self.parameters==2:
+				t,adc1,adc2 = ListMode2.unpack(data[start:start+width]) #IHH
+				
+				#### HACKS
+				#adc2 = int(np.round(adc2*450/490.))
+				#if 160<adc1<200 and adc2>0:
+				#	print('Coincide: ',adc1, adc2)
+				#	self.data[0][adc1]+=1  #Count only non-zero elements
+				#	self.data[1][adc2]+=1  #Count only non-zero elements
+				#####
+
+				if adc1:
+					self.spectra[0].data[adc1] +=1
+					self.spectra[0].data[0] = 0
+				if adc2: 
+					self.spectra[1].data[adc2] +=1
+					self.spectra[1].data[0] = 0
+				#if 150<adc1<205 and 170<adc2<225:
+				if adc1 and adc2:
+					self.totalCoincidences +=1
+					self.HISTOGRAM2D[int(adc1/self.SCALE2D)][int(adc2/self.SCALE2D)]+=1
+
+				#self.list[1].append(adc1)
+				#self.list[2].append(adc2)
+			tm = ( t )/64.e3 #Convert to mseconds
+			if self.listFile: #Dump to file if it is open
+				self.listFile.write('%.3f %d %d\n'%(tm+self.lastTime,adc1,adc2))
+			self.lastTime = tm
+			#if len(self.list[0]): #not the first element
+			#	self.list[0].append(tm+self.list[0][-1]) #Add the timestamp of the previous value
+			#	#self.listFile.write('%.3f %d %d\n'%(tm+self.list[0][-1],adc1,adc2))
+			#else:
+			#	self.list[0].append(tm)
+			#	#self.listFile.write('%.3f %d %d\n'%(tm,adc1,adc2))
+
+	def setCalibration(self,points,**kwargs):
+		activeDataset = kwargs.get('trace',self.activeDataset)
+		self.spectra[activeDataset].setCalibration(points)
+
+	def getCalibratedRange(self,**kwargs):
+		activeDataset = kwargs.get('trace',self.activeDataset)
+		return self.spectra[activeDataset].getCalibratedRange()
+			
+	def clearCalibration(self,**kwargs):
+		activeDataset = kwargs.get('trace',self.activeDataset)
+		self.spectra[activeDataset].clearCalibration()
+
+	def setLog(self,log):
+		for a in self.spectra: a.setLog(log)
+		self.log = log
+		if log: self.ylabel = 'log(counts)'
+		else: self.ylabel = 'counts'
+
+	def getHistogram(self,**kwargs):
+		activeDataset = kwargs.get('trace',self.activeDataset)
+		return self.spectra[activeDataset].getHistogram()
+
+	def xaxis(self,calibrate=True,**kwargs):
+		activeDataset = kwargs.get('trace',self.activeDataset)
+		return self.spectra[activeDataset].xaxis(calibrate)
+
+	def loadFile(self,filename):
+		data = np.loadtxt(filename)
+		for a in range(len(data[0])-1): #iterate over total-1 columns. first col is time.
+			self.spectra[a].data,_ = np.histogram(data[:,1+a],bins = self.bins,range=(0,self.bins-1))
+			self.spectra[a].data[0] = 0
+
+		self.activeDataset = 0
+		data = data[ data[:,1]*data[:,2] >0] #Only coincident data.
+		data_2d,_,_ = np.histogram2d(data[:,1],data[:,2],bins=self.BINS2D)
+		self.HISTOGRAM2D = data_2d
+		self.totalCoincidences = data_2d.sum()
+		self.filename = filename
+
+
 class MCA:	
 	GET_VERSION = Byte.pack(1)
 	START_COUNT =   Byte.pack(2)
@@ -121,8 +393,6 @@ class MCA:
 		self.buff=np.zeros(10000)
 		self.name = 'Multi Channel Analyzer'
 		self.listMode = 0 #No List mode parameters. 1= single param, 2=dual param ...
-		self.totalCoincidences = 0
-		self.list = [[],[],[]] #List mode data. New
 
 		self.occupiedPorts=set()
 		self.blockingSocket = None
@@ -138,7 +408,7 @@ class MCA:
 		self.total_bins = 1024
 		self.bytes_per_bin = 4
 		self.overflow = 0
-		self.activeSpectrum = self.spectrum(1024,4)
+		self.activeSpectrum = spectrum(1024,4)
 		if 'port' in kwargs:
 			try:
 				self.connected=self.connectToPort(kwargs.get('port',None))
@@ -160,186 +430,6 @@ class MCA:
 				else:
 					print(a,' is busy')
 
-	class spectrum:
-		offline = False
-		def __init__(self,bins,channelSize,listMode=0,**kwargs):
-			self.bins = bins
-			self.BINS2D = kwargs.get('BINS2D',64)
-			self.SCALE2D = int(self.bins/self.BINS2D)
-			self.channelSize = channelSize
-			self.listMode = listMode
-			self.filename = os.path.join(os.path.expanduser('~'),'MCA_thumbnails',str(time.time())+'.csv')
-			self.calPoly = np.poly1d([1,0])
-			self.calPolyInv = np.poly1d([1,0])
-			self.offline = False
-			self.log = False
-			self.clearData()
-			self.xlabel = 'Channel Number'
-			self.ylabel = 'counts'
-			if 'filename' in kwargs:
-				self.loadOfflineData(kwargs.get('filename'))
-		def hasData(self):
-			if self.listMode:
-				b=np.array([a.any() for a in self.data])
-				return b.any()
-			else:
-				return self.data.any()
-
-		def clearData(self):
-			self.overFlow=0
-			self.totalCoincidences = 0
-			if self.listMode: #Possibly multi-parameter list
-				self.data = [np.zeros(self.bins) for a in range(self.listMode)] # n number of spectrum buffers
-				self.list = [[] for a in range(self.listMode+1)] #Raw list mode data time,adc1,adc2...
-				self.HISTOGRAM2D,_,_ = np.histogram2d([],[],bins=self.BINS2D)
-				#self.listFile = open(self.filename,'wt')
-
-			else: #Single parameter histogram
-				self.data = np.zeros(self.bins)
-
-		def addRawData(self,data):
-			if not self.listMode: #Histogram data
-				try:
-					for a in range(self.bins): self.data[a] = unpacker[self.channelSize].unpack(data[a*self.channelSize:a*self.channelSize+self.channelSize])[0]
-
-				except Exception as ex:
-					msg = "Incorrect Number of Bytes Received\n"+ex.message
-					raise RuntimeError(msg)
-				self.overFlow = self.data[self.bins-1] #store info about last channel
-				self.data[self.bins-1] = 0 #Make last channel 0
-				self.data[511] = np.average([self.data[510],self.data[512]]) # adc correction
-				self.data[255] = np.average([self.data[254],self.data[256]])
-				self.data[127] = np.average([self.data[126],self.data[128]])
-
-			else:  #List mode data
-				width = 2*(self.listMode+2)
-				for a in range(int(len(data)/width)):
-					start = a*width
-					if self.listMode==1:
-						t,adc = ListMode1.unpack(data[start:start+width]) #IH
-						self.data[0][adc]+=1
-					elif self.listMode==2:
-						t,adc1,adc2 = ListMode2.unpack(data[start:start+width]) #IHH
-						
-						#### HACKS
-						#adc2 = int(np.round(adc2*450/490.))
-						#if 160<adc1<200 and adc2>0:
-						#	print('Coincide: ',adc1, adc2)
-						#	self.data[0][adc1]+=1  #Count only non-zero elements
-						#	self.data[1][adc2]+=1  #Count only non-zero elements
-						#####
-
-						if adc1: self.data[0][adc1]+=1  #Count only non-zero elements
-						if adc2: self.data[1][adc2]+=1  #Count only non-zero elements
-						#if 150<adc1<205 and 170<adc2<225:
-						if adc1 and adc2:
-							self.totalCoincidences +=1
-							self.HISTOGRAM2D[int(adc1/self.SCALE2D)][int(adc2/self.SCALE2D)]+=1
-							#print('C: ',self.totalCoincidences,', A1,A2: ',sum(self.data[0]),sum(self.data[1]))
-
-						self.list[1].append(adc1)
-						self.list[2].append(adc2)
-					tm = ( t )/64.e3 #Convert to mseconds
-					if len(self.list[0]): #not the first element
-						self.list[0].append(tm+self.list[0][-1]) #Add the timestamp of the previous value
-						#self.listFile.write('%.3f %d %d\n'%(tm+self.list[0][-1],adc1,adc2))
-					else:
-						self.list[0].append(tm)
-						#self.listFile.write('%.3f %d %d\n'%(tm,adc1,adc2))
-
-		def setCalibration(self,points):
-			'''
-			Prepares a calibration polynomial from channel numbers and corresponding energies
-			[ [a1,b1] , [a2,b2] ...]
-			a1,a2 ...  = channels
-			b1,b2 ...  = energies
-			'''
-
-			try:
-				self.calPoly = np.poly1d(np.polyfit(points[:,0],points[:,1],len(points)-1))
-				self.calPolyInv = np.poly1d(np.polyfit(points[:,1],points[:,0],len(points)-1))
-				print('calibration range:',self.getCalibratedRange())
-				self.xlabel = 'keV'
-			except Exception as e:
-				print(e)
-				print('Failed to calibrate')
-				self.xlabel = 'Channel Number'
-
-		def getCalibratedRange(self):
-			return [self.calPoly(0),self.calPoly(self.bins)]
-				
-		def clearCalibration(self):
-			self.calPoly = np.poly1d([1,0])
-			self.calPolyInv = np.poly1d([1,0])
-			self.xlabel = 'Channel Number'
-
-		def setLog(self,log):
-			self.log = log
-			if log: self.ylabel = 'log(counts)'
-			else: self.ylabel = 'counts'
-
-		def getHistogram(self):
-			if not self.listMode: #Histogram mode
-				if self.log: return np.log10(self.data)
-				else: return self.data
-			elif self.listMode == 1:
-				if self.log: return np.log10(self.data[0])
-				else: return self.data[0]
-			elif self.listMode == 2:
-				if self.log:
-					return np.log10(self.data[0]),np.log10(self.data[1]) 
-				else:
-					return self.data[0],self.data[1]
-
-			#for a in range(len(self.raw_y)):
-			#	if self.raw_y[a]:self.y[a] = np.log10(self.raw_y[a])
-			#for a in range(len(self.raw_y2)):
-			#	if self.raw_y2[a]:self.y2[a] = np.log10(self.raw_y2[a])
-
-		def xaxis(self,calibrate=True):
-			if calibrate: return self.calPoly(np.array(range(self.bins)))
-			else: return np.array(range(self.bins))
-
-		def loadOfflineData(self,filename):
-			with open(filename) as f:
-				comments=''
-				delim = ','
-				while True:
-					header = f.readline()
-					if header[0]=='#':
-						comments+=header[1:]
-						continue
-					data1 = header.strip()
-					if ',' in data1:
-						delim = ','
-					elif '  ' in data1:
-						delim = '  '
-					elif '\t' in data1:
-						delim = '\t'
-					else:
-						delim = ' '
-					break
-				print ('Loading : %s\n------\nComment: %s\n------\n\n'%(filename,comments))
-				if re.search('[a-df-zA-DF-Z]', header): #Header has letters
-					ar = np.loadtxt(filename,skiprows=1,delimiter=delim)
-				else:
-					try:
-						ar = np.loadtxt(filename,delimiter=delim)
-					except Exception as e:
-						logging.exception(e)					
-						print('error loading:',filename,delim,e)
-						return False
-
-
-			self.data =ar[:,1]
-			self.listMode = 0 
-			self.bins = len(self.data)
-			slope = (ar[:,0][-1] - ar[:,0][0] )/float(self.bins)
-			self.calPoly = np.poly1d([slope , ar[:,0][0]]) #slope, intercept
-			self.calPolyInv = np.poly1d([1/slope,-ar[:,0][0]/slope])
-			self.offline = True
-
-			return True
 
 
 	def getSpectrum(self,**kwargs):
@@ -369,26 +459,12 @@ class MCA:
 		spec.setCalibration(points)
 
 	def loadFile(self,filename,removeCal = False):
-		self.traces[filename] = self.spectrum(1024,4,0,filename = filename) #Trace is an empty 1K histogram on init
+		self.traces[filename] = spectrum(1024,4,filename = filename) #Trace is an empty 1K histogram on init
 		self.activeSpectrum = self.traces[filename]
 
 	def loadListFile(self,filename,removeCal = False):
-		self.traces[filename] = self.spectrum(1024,4,2)#empty dual list spectrum
-		data = np.loadtxt(filename)
-
-		#data = data[ data[:,1]*data[:,2] >0] #Only coincident data. TODO: REMOVE THIS LINE 
-		self.traces[filename].data[0],_ = np.histogram(data[:,1],bins = 1024,range=(0,1023))
-		self.traces[filename].data[1],_ = np.histogram(data[:,2],bins = 1024,range=(0,1023))
-
-		self.traces[filename].data[0][0] = 0
-		self.traces[filename].data[1][0] = 0 #Nullify first element
-
-		data = data[ data[:,1]*data[:,2] >0] #Only coincident data.
-		data_2d,_,_ = np.histogram2d(data[:,1],data[:,2],bins=self.traces[filename].BINS2D)
-		self.traces[filename].HISTOGRAM2D = data_2d
+		self.traces[filename] = listSpectrum(1024,4,2,filename = filename)#empty dual list spectrum
 		self.activeSpectrum = self.traces[filename]
-
-
 
 	def __sendInt__(self,val):
 		"""
@@ -566,7 +642,10 @@ class MCA:
 		self.fd = fd
 		self.version_number = version_number
 		self.portname = portname
-		self.traces[self.portname] = self.spectrum(self.total_bins,self.bytes_per_bin,self.listMode)
+		if self.listMode: self.traces[self.portname] = listSpectrum(self.total_bins,self.bytes_per_bin,self.listMode)
+		else:
+			print('histgram mode MCA detected')
+			self.traces[self.portname] = spectrum(self.total_bins,self.bytes_per_bin)
 		self.activeSpectrum = self.traces[self.portname]
 
 		return True

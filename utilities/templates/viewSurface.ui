@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>MainWindow</string>
+   <string>Coincidence Plots: Heat Map and 3D Surface View</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout_2">
@@ -25,21 +25,8 @@
      <number>0</number>
     </property>
     <property name="bottomMargin">
-     <number>4</number>
+     <number>2</number>
     </property>
-    <item row="1" column="1">
-     <widget class="ImageView" name="imageView">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="MinimumExpanding" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-     </widget>
-    </item>
-    <item row="0" column="1">
-     <widget class="QComboBox" name="gradientBox"/>
-    </item>
     <item row="2" column="0" colspan="4">
      <widget class="QFrame" name="frame">
       <property name="sizePolicy">
@@ -179,6 +166,16 @@
       </property>
      </widget>
     </item>
+    <item row="0" column="1" rowspan="2">
+     <widget class="ImageView" name="imageView">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="MinimumExpanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+     </widget>
+    </item>
    </layout>
   </widget>
  </widget>
@@ -209,22 +206,6 @@
     <hint type="destinationlabel">
      <x>593</x>
      <y>235</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>gradientBox</sender>
-   <signal>currentIndexChanged(QString)</signal>
-   <receiver>MainWindow</receiver>
-   <slot>changeGradient(QString)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>76</x>
-     <y>20</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>-13</x>
-     <y>28</y>
     </hint>
    </hints>
   </connection>

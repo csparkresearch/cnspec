@@ -27,14 +27,14 @@
    <bool>false</bool>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QHBoxLayout" name="horizontalLayout">
-    <property name="spacing">
-     <number>0</number>
-    </property>
+   <layout class="QGridLayout" name="gridLayout_4">
     <property name="margin">
      <number>0</number>
     </property>
-    <item>
+    <property name="spacing">
+     <number>1</number>
+    </property>
+    <item row="0" column="0">
      <widget class="QTabWidget" name="tabWidget">
       <property name="toolTip">
        <string/>
@@ -96,6 +96,74 @@
       </widget>
      </widget>
     </item>
+    <item row="1" column="0">
+     <widget class="QFrame" name="frame">
+      <property name="maximumSize">
+       <size>
+        <width>16777215</width>
+        <height>20</height>
+       </size>
+      </property>
+      <property name="frameShape">
+       <enum>QFrame::NoFrame</enum>
+      </property>
+      <property name="frameShadow">
+       <enum>QFrame::Raised</enum>
+      </property>
+      <layout class="QHBoxLayout" name="extraLayout">
+       <property name="spacing">
+        <number>3</number>
+       </property>
+       <property name="margin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QLabel" name="label_2">
+         <property name="text">
+          <string>Active Trace:</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QComboBox" name="activeTrace"/>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButton_6">
+         <property name="toolTip">
+          <string>Save acquired data as well as fitted data if any.</string>
+         </property>
+         <property name="text">
+          <string>Save Data</string>
+         </property>
+         <property name="icon">
+          <iconset>
+           <normaloff>saveall.png</normaloff>saveall.png</iconset>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButton">
+         <property name="text">
+          <string>PushButton</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
    </layout>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
@@ -143,7 +211,7 @@
        <property name="frameShadow">
         <enum>QFrame::Raised</enum>
        </property>
-       <layout class="QVBoxLayout" name="verticalLayout" stretch="0,1,0,0,1,0,0,0,2,2,0,0">
+       <layout class="QVBoxLayout" name="verticalLayout" stretch="0,1,0,0,1,0,0,0,2,0,0">
         <property name="spacing">
          <number>3</number>
         </property>
@@ -341,6 +409,19 @@
             <widget class="QLabel" name="label">
              <property name="text">
               <string>LIST MODE:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="4">
+            <widget class="QPushButton" name="pushButton_2">
+             <property name="maximumSize">
+              <size>
+               <width>60</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>Save To:</string>
              </property>
             </widget>
            </item>
@@ -629,20 +710,6 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton_6">
-          <property name="toolTip">
-           <string>Save acquired data as well as fitted data if any.</string>
-          </property>
-          <property name="text">
-           <string>Save Data</string>
-          </property>
-          <property name="icon">
-           <iconset>
-            <normaloff>saveall.png</normaloff>saveall.png</iconset>
-          </property>
-         </widget>
-        </item>
-        <item>
          <widget class="Line" name="line_4">
           <property name="orientation">
            <enum>Qt::Horizontal</enum>
@@ -778,8 +845,8 @@ Colour changes to green for valid loads</string>
    <slot>summation()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>112</x>
-     <y>373</y>
+     <x>116</x>
+     <y>415</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -794,8 +861,8 @@ Colour changes to green for valid loads</string>
    <slot>insertRegion()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>215</x>
-     <y>306</y>
+     <x>199</x>
+     <y>304</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -811,7 +878,7 @@ Colour changes to green for valid loads</string>
    <hints>
     <hint type="sourcelabel">
      <x>28</x>
-     <y>412</y>
+     <y>450</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -826,8 +893,8 @@ Colour changes to green for valid loads</string>
    <slot>showRegionWindow()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>68</x>
-     <y>287</y>
+     <x>73</x>
+     <y>325</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -843,7 +910,7 @@ Colour changes to green for valid loads</string>
    <hints>
     <hint type="sourcelabel">
      <x>203</x>
-     <y>425</y>
+     <y>453</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -874,8 +941,8 @@ Colour changes to green for valid loads</string>
    <slot>toggleLog(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>207</x>
-     <y>259</y>
+     <x>231</x>
+     <y>293</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -938,8 +1005,8 @@ Colour changes to green for valid loads</string>
    <slot>save()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>148</x>
-     <y>470</y>
+     <x>515</x>
+     <y>555</y>
     </hint>
     <hint type="destinationlabel">
      <x>3</x>
@@ -970,8 +1037,8 @@ Colour changes to green for valid loads</string>
    <slot>addSelectedPoint()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>258</x>
-     <y>435</y>
+     <x>231</x>
+     <y>430</y>
     </hint>
     <hint type="destinationlabel">
      <x>0</x>
@@ -986,8 +1053,8 @@ Colour changes to green for valid loads</string>
    <slot>removeRegion()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>246</x>
-     <y>306</y>
+     <x>230</x>
+     <y>304</y>
     </hint>
     <hint type="destinationlabel">
      <x>185</x>
@@ -1018,12 +1085,44 @@ Colour changes to green for valid loads</string>
    <slot>launch3D()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>237</x>
-     <y>231</y>
+     <x>231</x>
+     <y>237</y>
     </hint>
     <hint type="destinationlabel">
      <x>264</x>
      <y>250</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>activeTrace</sender>
+   <signal>currentIndexChanged(QString)</signal>
+   <receiver>MainWindow</receiver>
+   <slot>changeActiveTrace(QString)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>379</x>
+     <y>550</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>380</x>
+     <y>582</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_2</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>setListSaveFilename()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>199</x>
+     <y>199</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>248</x>
+     <y>217</y>
     </hint>
    </hints>
   </connection>
@@ -1063,5 +1162,7 @@ Colour changes to green for valid loads</string>
   <slot>showRegionWindow()</slot>
   <slot>autoUpdateEnable(bool)</slot>
   <slot>launch3D()</slot>
+  <slot>changeActiveTrace(QString)</slot>
+  <slot>setListSaveFilename()</slot>
  </slots>
 </ui>

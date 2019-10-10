@@ -1,5 +1,5 @@
 from .Qt import QtGui,QtCore,QtWidgets
-import sys,os,time
+import sys,os,time,functools
 import pyqtgraph as pg
 import numpy as np
 from . templates import ui_view3d as view3d
@@ -26,20 +26,23 @@ class surface3d(QtGui.QMainWindow, viewSurface.Ui_MainWindow):
 		self.plot = gl.GLSurfacePlotItem(z=data_2d, shader='shaded', color=(0.5, 0.5, 1, 1))
 		self.data_2d = data_2d
 
+		self.plot.opts['color'] = (.3, .1, .3, 0.6)
+		self.plot.setShader('balloon')
+		self.plot.setGLOptions('additive')
+		self.plot.opts['computeNormals'] = True
+
 		#self.plot.scale(BINS/49., BINS/49., .1)
 		self.plot.translate(-1*BINS/2, -1*BINS/2, 0)
 		self.plotView.addItem(self.plot)
 		self.lastZStep = 0
+		#self.plotView.setBackgroundColor('w')
+
+
 		
 		self.imageView.setImage(data_2d)
 		self.imageView.setPredefinedGradient('thermal')
-		self.gradientBox.addItems(['flame', 'yellowy', 'bipolar', 'spectrum', 'cyclic', 'greyclip', 'grey','thermal'])
-
 		self.imageView.roi.sigRegionChanged.connect(self.roiChanged)
-
-
-	def changeGradient(self,s):
-		self.imageView.setPredefinedGradient(str(s))
+		self.imageView.ui.roiBtn.clicked.connect(functools.partial(self.imageView.ui.roiPlot.setVisible,False))
 		
 	def roiChanged(self):
 		axes = (self.imageView.axes['x'], self.imageView.axes['y'])
@@ -51,13 +54,15 @@ class surface3d(QtGui.QMainWindow, viewSurface.Ui_MainWindow):
 		if self.imageView.axes['t'] is None:
 			A1 = coords[0][0][0]; A2 = coords[0][0][-1]
 			B1 = coords[-1][0][0]; B2 = coords[-1][0][-1]
-			print(A1,A2,coords)
-			self.labelC.setText('ROI Counts: %d'%(np.sum(data)))
+			#print(A1,A2,coords)
+			tot = np.sum(data)
+			self.labelC.setText('ROI Counts: %d'%(tot))
 		
 	def setData(self,data_2d):
 		self.data_2d = data_2d
-		self.plot.setData(z=data_2d)
-		self.imageView.setImage(data_2d)
+		if data_2d.any():
+			self.plot.setData(z=data_2d)
+			self.imageView.setImage(data_2d)
 
 
 	def scaleZ(self,z):
