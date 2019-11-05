@@ -11,10 +11,12 @@ if ENVIRON=='PyQt5':
 	except:
 		print('Svg export unavailable')
 
+	'''
 	try:
 		from PyQt5.QtWebKitWidgets import QWebView# , QWebPage
 	except:
 		print('webview unavailable')
+	'''
 elif ENVIRON == 'PyQt4':
 	from PyQt4 import QtGui,QtCore
 	from PyQt4 import QtGui as QtWidgets
@@ -22,9 +24,10 @@ elif ENVIRON == 'PyQt4':
 		from PyQt4 import QtSvg
 	except:
 		print('Svg export unavailable')
+	'''
 	try:
 		from PyQt4.QtWebKitWidgets import QWebView# , QWebPage
 	except:
 		pass
 		#print('webview unavailable')
-	
+	'''

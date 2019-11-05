@@ -349,7 +349,7 @@ class listSpectrum:
 
 		self.activeDataset = 0
 		data = data[ data[:,1]*data[:,2] >0] #Only coincident data.
-		data_2d,_,_ = np.histogram2d(data[:,1],data[:,2],bins=self.BINS2D)
+		data_2d,_,_ = np.histogram2d(data[:,1],data[:,2],bins=self.BINS2D,range=[(0,self.bins-1),(0,self.bins-1)])
 		self.HISTOGRAM2D = data_2d
 		self.totalCoincidences = data_2d.sum()
 		self.filename = filename
@@ -463,7 +463,7 @@ class MCA:
 		self.activeSpectrum = self.traces[filename]
 
 	def loadListFile(self,filename,removeCal = False):
-		self.traces[filename] = listSpectrum(1024,4,2,filename = filename)#empty dual list spectrum
+		self.traces[filename] = listSpectrum(1024,4,2,filename = filename, BINS2D=128)#empty dual list spectrum
 		self.activeSpectrum = self.traces[filename]
 
 	def __sendInt__(self,val):

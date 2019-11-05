@@ -81,7 +81,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.historyWindow = historyPopup.AppWindow(self,regions = self.regionWindow.regions)
 		self.addDockWidget(QtCore.Qt.RightDockWidgetArea, self.historyWindow)
 		self.historyWindow.setFloating(True)
-		#self.historyWindow.close()
+		self.historyWindow.close()
 
 		#Define some keyboard shortcuts for ease of use
 		self.shortcutActions={}
@@ -138,7 +138,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		#self.loadPlot('DATA/212Bi.csv')
 		#self.showGammaMarkers('137Cs')
 		#self.loadPlot('DATA/eu152.dat')
-		#self.loadList('DATA/list_sample.csv')
+		#self.loadList('DATA/biggest_list_sample.csv')
 		self.splash.showMessage("<h2><font color='Black'>Ready!</font></h2>", QtCore.Qt.AlignLeft, QtCore.Qt.black)
 		self.splash.pbar.setValue(8)
 
@@ -672,6 +672,9 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			self.countLabel.setText('Not Connected')
 			return
 		try:
+			state,cnt = self.p.getStatus()
+			self.currentState = state
+			if not self.currentState: return
 			if self.p.activeSpectrum.datatype=='list':
 				self.p.sync()
 			state,cnt = self.p.getStatus()
