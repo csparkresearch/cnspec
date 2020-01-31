@@ -2,12 +2,23 @@
 import sys,os,time,re
 
 from .Qt import QtCore,QtWidgets
-from . templates import ui_regionPopup2,ui_regionWidget
+from . templates import ui_regionPopup2,ui_regionWidget,ui_startDialog
 import pyqtgraph as pg
 import numpy as np
 from . import decayTools
 
 from scipy.optimize import leastsq
+
+class startDialog(QtWidgets.QDialog, ui_startDialog.Ui_Dialog):
+	def __init__(self, parent,**kwargs):
+		super(startDialog, self).__init__(parent, QtCore.Qt.WindowStaysOnTopHint)
+		self.setupUi(self)
+		self.thresholdBox.setValue(kwargs.get('threshold',50))
+		self.refreshBox.setValue(kwargs.get('autoRefresh',10))
+	def getRefreshInterval(self):
+		return self.refreshBox.value()
+	def getThreshold(self):
+		return self.thresholdBox.value()
 
 
 class AppWindow(QtWidgets.QDockWidget, ui_regionPopup2.Ui_DockWidget):

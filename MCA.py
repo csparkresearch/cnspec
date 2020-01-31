@@ -8,18 +8,28 @@ from utilities.templates import ui_layout as layout
 import constants
 
 class myTimer():
-	def __init__(self,interval):
+	def __init__(self,interval,active=True):
 		self.interval = interval
 		self.reset()
-	def reset(self):
+		self.active = active #deactivate if necessary.(e.g. autostop)
+
+	def reset(self,interval=None):
+		if interval is not None:
+			self.interval = interval
 		self.timeout = time.time()+self.interval
+		self.active=True
+
+	def deactivate(self):
+		self.active = False
+
 	def ready(self):
 		T = time.time()
 		dt = T - self.timeout
-		if dt>0: #timeout is ahead of current time 
+		if dt>0 and self.active==True: #timeout is ahead of current time 
 			self.timeout = T - dt%self.interval + self.interval
 			return True
 		return False
+
 	def progress(self):
 		return 100*(self.interval - self.timeout + time.time())/(self.interval)			
 
@@ -121,8 +131,10 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		'current':myTimer(constants.CURRENT_UPDATE_INTERVAL),
 		'temperature':myTimer(constants.TEMPERATURE_UPDATE_INTERVAL),
 		'halflife':myTimer(self.regionWindow.decayInterval.value()),
+		'autostop':myTimer(0,False),
 		'datadump':myTimer(self.regionWindow.saveAllInterval.value()*60) #convert minutes to seconds		
 		}
+		
 		self.temperature = decayTools.temperatureHandler()
 		
 		self.startTime = time.time()
@@ -139,6 +151,8 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		#self.showGammaMarkers('137Cs')
 		#self.loadPlot('DATA/eu152.dat')
 		#self.loadList('DATA/biggest_list_sample.csv')
+		#self.loadFromMemory('tmp2.npy',128)
+
 		self.splash.showMessage("<h2><font color='Black'>Ready!</font></h2>", QtCore.Qt.AlignLeft, QtCore.Qt.black)
 		self.splash.pbar.setValue(8)
 
@@ -462,13 +476,20 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 		if self.pending['status'].ready():
 			self.updateStatus()
+
+		if self.pending['autostop'].ready():
+			self.p.stopHistogram()
+			self.pending['autostop'].deactivate()
+			self.showStatus('Stopped Acquisition',True)
+
+
 		if self.currentMonitorAvailable:
 			if self.pending['current'].ready():			
 				self.updateCurrent()
 
 		if self.p.VOLTMETER_ENABLED:
 			if self.pending['temperature'].ready():			
-				self.updateTemperature()
+				pass#self.updateTemperature()
 
 		if self.switchingPlot: #Skip this if the plot is being regenerated with new colours
 			return
@@ -740,8 +761,23 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 	def start(self):
 		if not self.checkConnectionStatus(True):return
-		self.p.setThreshold(self.p.threshold)
+
+		self.startDialog = regionPopup.startDialog(self,threshold = self.p.threshold,autoRefresh = self.autoUpdateTimerInterval.value())
+		self.startDialog.exec_()
+		self.p.threshold = self.startDialog.getThreshold()
+		self.autoUpdateTimerInterval.setValue(self.startDialog.getRefreshInterval())
+		stoptime = self.startDialog.stopBox.value()
 		self.showStatus("System Status | Acquisition Started : %s"%time.ctime())
+
+		if self.startDialog.clearBox.isChecked():
+			self._clear()
+		self.p.setThreshold(self.p.threshold)
+
+		if stoptime != 0:
+			self.pending['autostop'].reset(stoptime)
+			self.showStatus("Acquisition Started : %s. Stop after %d seconds"%(time.ctime(),stoptime))
+			print('acquisition will automatically stop after %d seconds'%stoptime)
+
 		self.p.startHistogram()
 		self.stateHighlight(True)
 		
@@ -754,12 +790,16 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 	def clear(self):
 		reply = QtWidgets.QMessageBox.question(self, 'Warning', 'Clear the entire histogram?\nThis will erase data stored in the hardware also.', QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.Yes)
 		if reply == QtWidgets.QMessageBox.Yes:
+			self._clear()
+
+	def _clear(self):
 			self.clearPlot()
 			self.clearAllSums()
 			self.p.activeSpectrum.clearData()
 			self.showStatus("System Status | Data cleared : %s"%time.ctime())
 			if not self.checkConnectionStatus():return
 			self.p.clearHistogram()
+			self.clearCount()
 			self.pending['update'].reset()
 			self.historyWindow.clear()
 			self.temperature.clear()
@@ -1100,6 +1140,17 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.surfacePlot.labelB.setText('/%d [%.2f%%]'%(A+B,100*B/(A+B)))
 
 		self.coincidenceLabel.setText('C: %d [%d , %d]'%(C,A,B) )
+
+		self.listFrame.show()
+		self.surfacePlot.show()
+	
+	def loadFromMemory(self,mem,BINS):
+		data_2d = np.memmap(mem, dtype='int64', mode='r',shape = (BINS,BINS))
+		from utilities import plot3DTools
+		if self.surfacePlot: 
+			self.surfacePlot.close()
+			del self.surfacePlot
+		self.surfacePlot = plot3DTools.surface3d(self,data_2d,BINS)
 
 		self.listFrame.show()
 		self.surfacePlot.show()

@@ -120,9 +120,6 @@ class spectrum:
 			raise RuntimeError(msg)
 		self.overFlow = self.data[self.bins-1] #store info about last channel
 		self.data[self.bins-1] = 0 #Make last channel 0
-		self.data[511] = np.average([self.data[510],self.data[512]]) # adc correction
-		self.data[255] = np.average([self.data[254],self.data[256]])
-		self.data[127] = np.average([self.data[126],self.data[128]])
 
 	def setCalibration(self,points,**kwargs):
 		'''
@@ -276,10 +273,6 @@ class listSpectrum:
 				self.spectra[0].data[adc] +=1
 				self.spectra[0].data[0] = 0
 				
-				self.spectra[0].data[511] = np.average([self.spectra[0].data[510],self.spectra[0].data[512]]) # adc correction
-				self.spectra[0].data[255] = np.average([self.spectra[0].data[254],self.spectra[0].data[256]])
-				self.spectra[0].data[127] = np.average([self.spectra[0].data[126],self.spectra[0].data[128]])
-
 			elif self.parameters==2:
 				t,adc1,adc2 = ListMode2.unpack(data[start:start+width]) #IHH
 				

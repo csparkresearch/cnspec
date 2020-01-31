@@ -5,6 +5,7 @@ import numpy as np
 from . templates import ui_view3d as view3d
 from . templates import ui_viewSurface as viewSurface
 
+from matplotlib.pyplot import get_cmap as get_cmap
 
 try:
 	import pyqtgraph.opengl as gl
@@ -23,16 +24,24 @@ class surface3d(QtGui.QMainWindow, viewSurface.Ui_MainWindow):
 		self.GL_ENABLED = GL_ENABLED
 		self.BINS = BINS
 		self.plotView.setCameraPosition(distance=50)
-		self.plot = gl.GLSurfacePlotItem(z=data_2d, shader='shaded', color=(0.5, 0.5, 1, 1))
 		self.data_2d = data_2d
 
-		self.plot.opts['color'] = (.3, .1, .3, 0.6)
-		self.plot.setShader('balloon')
-		self.plot.setGLOptions('additive')
-		self.plot.opts['computeNormals'] = True
+		#self.plot = gl.GLSurfacePlotItem(z=data_2d, shader='shaded', color=(0.5, 0.5, 1, 1))
+		self.saveshortcut = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+S"), self)
+		self.saveshortcut.activated.connect(self.saveToMem)
+
+
+		self.cmap = get_cmap('RdBu')
+		minZ=np.min(data_2d)
+		maxZ=np.max(data_2d)
+		rgba_img = self.cmap((data_2d-minZ+1)/(maxZ -minZ)/0.5)
+		self.plot = gl.GLSurfacePlotItem(z=data_2d, colors = rgba_img,computeNormals=True, smooth=True)
+
 
 		#self.plot.scale(BINS/49., BINS/49., .1)
-		self.plot.translate(-1*BINS/2, -1*BINS/2, 0)
+		self.xshift = -1*BINS/2
+		self.yshift = -1*BINS/2
+		self.plot.translate(self.xshift,self.yshift, 0)
 		self.plotView.addItem(self.plot)
 		self.lastZStep = 0
 		#self.plotView.setBackgroundColor('w')
@@ -43,13 +52,33 @@ class surface3d(QtGui.QMainWindow, viewSurface.Ui_MainWindow):
 		self.imageView.setPredefinedGradient('thermal')
 		self.imageView.roi.sigRegionChanged.connect(self.roiChanged)
 		self.imageView.ui.roiBtn.clicked.connect(functools.partial(self.imageView.ui.roiPlot.setVisible,False))
+
+		# Isocurve drawing
+		self.iso = pg.IsocurveItem(level=2000, pen='g')
+		self.iso.setParentItem(self.imageView.imageItem)
+		self.iso.setZValue(5)
+		self.iso.setLevel(100)
+		self.iso.setData(data_2d)
+
+
+		# Draggable line for setting isocurve level
+		self.isoLine = pg.InfiniteLine(angle=0, movable=True, pen='g')
+		self.imageView.ui.histogram.vb.addItem(self.isoLine)
+		self.imageView.ui.histogram.vb.setMouseEnabled(y=False) # makes user interaction a little easier
+		self.isoLine.setZValue(1000) # bring iso line above contrast controls
+		self.isoLine.sigDragged.connect(self.updateIsocurve)
+
+	def updateIsocurve(self):
+		self.iso.setLevel(self.isoLine.value())
+
+
 		
 	def roiChanged(self):
 		axes = (self.imageView.axes['x'], self.imageView.axes['y'])
 		data, coords = self.imageView.roi.getArrayRegion(self.data_2d, self.imageView.imageItem, axes, returnMappedCoords=True)
 		if data is None:
 			return
-
+		self.update3d(data)
 		# Convert extracted data into 1D plot data
 		if self.imageView.axes['t'] is None:
 			A1 = coords[0][0][0]; A2 = coords[0][0][-1]
@@ -61,15 +90,37 @@ class surface3d(QtGui.QMainWindow, viewSurface.Ui_MainWindow):
 	def setData(self,data_2d):
 		self.data_2d = data_2d
 		if data_2d.any():
-			self.plot.setData(z=data_2d)
+			self.update3d(self.data_2d)
 			self.imageView.setImage(data_2d)
+			self.iso.setData(data_2d)
 
+	def update3d(self,data_2d):
+			self.plot.resetTransform()
+			minZ=np.min(data_2d)
+			maxZ=np.max(data_2d)
+			rgba_img = self.cmap((data_2d-minZ)/(maxZ -minZ)/0.2)
+			self.plot.setData(z=data_2d, colors = rgba_img)
+			X = len(data_2d)
+			Y = len(data_2d[1])
+			self.xshift = -1*X/2
+			self.yshift = -1*Y/2
 
+			self.plot.translate(-1*X/2,-1*Y/2, 0)
+			self.plot.scale(1., 1., 10./maxZ)
+			self.plotView.setCameraPosition(distance=max([X,Y,20.]))
+
+	def saveToMem(self):
+		fname = 'tmp2.npy'
+		fp = np.memmap(fname, dtype='int64', mode='w+',shape = self.data_2d.shape)
+		fp[:] = self.data_2d[:]
+		del fp
+		print('saved to:',fname)
+		
 	def scaleZ(self,z):
-		delta = z - self.lastZStep
-		self.lastZStep = z
-		if not delta: return
-		self.plot.scale(1., 1., 1+delta/100.)
+		z = (1000-z)/100.
+		self.plot.resetTransform()
+		self.plot.translate(self.xshift,self.yshift,0)
+		self.plot.scale(1., 1., 1./np.exp(z))
 
 
 class AppWindow(QtGui.QMainWindow, view3d.Ui_MainWindow):
