@@ -7,7 +7,7 @@ from utilities.templates import ui_calibWidget as ui_calibWidget
 import sys,os,time,functools
 
 
-class calibWidget(QtGui.QWidget,ui_calibWidget.Ui_Form):
+class calibWidget(QtWidgets.QWidget,ui_calibWidget.Ui_Form):
 	def __init__(self,channel,energy,onDelete,updatePoly):
 		super(calibWidget, self).__init__()
 		self.setupUi(self)
@@ -28,13 +28,13 @@ class calibWidget(QtGui.QWidget,ui_calibWidget.Ui_Form):
 
 
 
-class AppWindow(QtGui.QMainWindow, calTable.Ui_MainWindow):
+class AppWindow(QtWidgets.QMainWindow, calTable.Ui_MainWindow):
 	def __init__(self,onReload,parentLabel=None):
 		super(AppWindow, self).__init__()
 		self.setupUi(self)
 		self.onReload = onReload
 		self.widgetLayout.setAlignment(QtCore.Qt.AlignTop)
-		self.connect(QtGui.QShortcut(QtGui.QKeySequence(QtCore.Qt.Key_Escape), self), QtCore.SIGNAL('activated()'), self.close)
+		self.connect(QtWidgets.QShortcut(QtGui.QKeySequence(QtCore.Qt.Key_Escape), self), QtCore.SIGNAL('activated()'), self.close)
 
 		self.rows = []
 		self.parentLabel = parentLabel

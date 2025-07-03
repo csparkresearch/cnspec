@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>436</width>
-    <height>202</height>
+    <height>219</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -25,7 +25,11 @@
     </widget>
    </item>
    <item row="2" column="1" colspan="3">
-    <widget class="QSpinBox" name="stopBox"/>
+    <widget class="QSpinBox" name="stopBox">
+     <property name="maximum">
+      <number>1000000</number>
+     </property>
+    </widget>
    </item>
    <item row="0" column="0" colspan="4">
     <widget class="QLabel" name="message">
@@ -52,10 +56,18 @@
     </widget>
    </item>
    <item row="5" column="1" colspan="3">
-    <widget class="QSpinBox" name="refreshBox"/>
+    <widget class="QSpinBox" name="refreshBox">
+     <property name="maximum">
+      <number>300</number>
+     </property>
+    </widget>
    </item>
    <item row="3" column="1" colspan="3">
-    <widget class="QSpinBox" name="thresholdBox"/>
+    <widget class="QSpinBox" name="thresholdBox">
+     <property name="maximum">
+      <number>2000</number>
+     </property>
+    </widget>
    </item>
    <item row="5" column="0">
     <widget class="QLabel" name="message_4">
@@ -76,6 +88,12 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>stopBox</tabstop>
+  <tabstop>thresholdBox</tabstop>
+  <tabstop>refreshBox</tabstop>
+  <tabstop>clearBox</tabstop>
+ </tabstops>
  <resources/>
  <connections>
   <connection>

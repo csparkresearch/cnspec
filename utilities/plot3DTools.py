@@ -14,7 +14,7 @@ except:
 	GL_ENABLED = False
 
 
-class surface3d(QtGui.QMainWindow, viewSurface.Ui_MainWindow):
+class surface3d(QtWidgets.QMainWindow, viewSurface.Ui_MainWindow):
 	pointList=[]
 	shaders = ['balloon','shaded','normalColor','heightColor','viewNormalColor','edgeHilight']
 	def __init__(self, parent=None,data_2d=None,BINS=None):
@@ -123,7 +123,7 @@ class surface3d(QtGui.QMainWindow, viewSurface.Ui_MainWindow):
 		self.plot.scale(1., 1., 1./np.exp(z))
 
 
-class AppWindow(QtGui.QMainWindow, view3d.Ui_MainWindow):
+class AppWindow(QtWidgets.QMainWindow, view3d.Ui_MainWindow):
 	pointList=[]
 	shaders = ['balloon','shaded','normalColor','heightColor','viewNormalColor','edgeHilight']
 	def __init__(self, parent=None):

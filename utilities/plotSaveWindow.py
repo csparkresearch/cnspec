@@ -8,17 +8,17 @@ import numpy as np
 
 
 
-class AppWindow(QtGui.QMainWindow, plotSave.Ui_MainWindow):
+class AppWindow(QtWidgets.QMainWindow, plotSave.Ui_MainWindow):
 	def __init__(self, parent ,curveList,plot,extra=None,**kwargs):
 		super(AppWindow, self).__init__(parent)
 		self.setupUi(self)
-		self.closeshortcut = QtGui.QShortcut(QtGui.QKeySequence(QtCore.Qt.Key_Escape), self)
+		self.closeshortcut = QtWidgets.QShortcut(QtGui.QKeySequence(QtCore.Qt.Key_Escape), self)
 		self.closeshortcut.activated.connect(self.close)
 
-		self.imgshortcut = QtGui.QShortcut(QtGui.QKeySequence("Ctrl-P"), self)
+		self.imgshortcut = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl-P"), self)
 		self.imgshortcut.activated.connect(self.printImage)
 
-		self.copyshortcut = QtGui.QShortcut(QtGui.QKeySequence("Ctrl-C"), self)
+		self.copyshortcut = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl-C"), self)
 		self.copyshortcut.activated.connect(self.copyToClipboard)
 
 		arr = []
@@ -52,7 +52,7 @@ class AppWindow(QtGui.QMainWindow, plotSave.Ui_MainWindow):
 		if plot:
 			self.imageWidthBox.setEnabled(True)
 			self.saveImageButton.setEnabled(True)
-			self.imageWidthBox.setValue(self.plot.plotItem.width())
+			self.imageWidthBox.setValue(int(self.plot.plotItem.width()))
 			
 			
 	def arrayToHtml(self,curvelist):
@@ -78,7 +78,7 @@ class AppWindow(QtGui.QMainWindow, plotSave.Ui_MainWindow):
 		self.headerText.setText(headers)
 
 	def saveImage(self):  #Save as png or something
-		path, _filter  = QtGui.QFileDialog.getSaveFileName(self, 'Save File', '~/')
+		path, _filter  = QtWidgets.QFileDialog.getSaveFileName(self, 'Save File', '~/')
 		if path:
 			pieces = path.split('.')
 			if len(pieces)<2: #No extension specified
@@ -108,7 +108,7 @@ class AppWindow(QtGui.QMainWindow, plotSave.Ui_MainWindow):
 	
 
 	def save(self):  #Save as CSV
-		path, _filter  = QtGui.QFileDialog.getSaveFileName(self, 'Save File', '~/', 'CSV(*.csv)')
+		path, _filter  = QtWidgets.QFileDialog.getSaveFileName(self, 'Save File', '~/', 'CSV(*.csv)')
 		if path:
 			#check if file extension is CSV
 			if path[-3:] not in ['csv','txt','dat'] :

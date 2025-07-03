@@ -1,10 +1,11 @@
 #!/usr/bin/python3
 
-import os,sys,time
+import os,sys,time,platform
 from utilities.Qt import QtGui, QtCore, QtWidgets
 _translate = QtCore.QCoreApplication.translate
 
 from utilities.templates import ui_layout as layout
+
 import constants
 
 class myTimer():
@@ -12,11 +13,13 @@ class myTimer():
 		self.interval = interval
 		self.reset()
 		self.active = active #deactivate if necessary.(e.g. autostop)
+		self.start_time = time.time()
 
 	def reset(self,interval=None):
 		if interval is not None:
 			self.interval = interval
-		self.timeout = time.time()+self.interval
+		self.start_time = time.time()
+		self.timeout = self.start_time + self.interval
 		self.active=True
 
 	def deactivate(self):
@@ -33,6 +36,40 @@ class myTimer():
 	def progress(self):
 		return 100*(self.interval - self.timeout + time.time())/(self.interval)			
 
+class pulseRate():
+	def __init__(self):
+		self.SIZE = 20 #Increase to improve averaging
+		self.counts = np.zeros([self.SIZE,2])
+		self.datapoints = 0
+	def clear(self):
+		self.datapoints = 0
+		self.counts = np.zeros([self.SIZE,2])
+
+	def getRate(self):
+		if self.datapoints <= 1: return 0
+		pfinal = self.counts[self.SIZE-1]
+		pfirst = self.counts[ max(0,self.SIZE-1-self.datapoints+1) ]  #no element less than zeroeth element.
+		rate = (pfinal[1] - pfirst[1])/(pfinal[0] - pfirst[0])
+		return rate
+
+	def getInstantRate(self):
+		if self.datapoints <= 1: return 0
+		pfinal = self.counts[self.SIZE-1]
+		psecondfinal = self.counts[self.SIZE-2]
+		rate = (pfinal[1] - psecondfinal[1])/(pfinal[0] - psecondfinal[0])
+		return rate
+
+
+	def getBothRates(self):
+		#Latest, Average.
+		return [self.getInstantRate(), self.getRate()]
+
+	def addPoint(self,t,c):
+		self.counts = np.roll(self.counts,-1,0)
+		self.counts[self.SIZE - 1][0] = t
+		self.counts[self.SIZE - 1][1] = c
+		self.datapoints+=1
+
 class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 	total_bins = 1024
 	version_number=0
@@ -42,6 +79,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 	dataDumpPath = None
 	calibrationChanged = QtCore.pyqtSignal(object,object, name='calibrationChanged')
 	plot = None
+	pulsePlot = None
 	vLine = None
 	switchingPlot = False
 	surfacePlot = None
@@ -52,7 +90,10 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		#self.setTheme("material2")
 		self.statusBar = self.statusBar()
 		self.splash = kwargs.get('splash',None)
-
+		self.vacuum_enabled = True
+		self.pulseStretchState = False
+		self.SCOPE_ENABLED = True
+		self.scope_ready_time = 0
 
 		global app
 		self.fileBrowser = fileBrowser(thumbnail_directory = 'MCA_thumbnails',app=app, clickCallback = self.loadPlot,recordToHistory = self.recordToHistory, loadList = self.loadList)
@@ -95,7 +136,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 		#Define some keyboard shortcuts for ease of use
 		self.shortcutActions={}
-		self.shortcuts={"+":self.summation,"s":self.start,"f":self.fit,"u":self.load,"r":self.insertRegion,"g":self.fitWithTail,"t":self.fitWithTail,"h":self.historyWindow.show,"Ctrl+S":self.save,"o":self.selectDevice}
+		self.shortcuts={"+":self.summation,"s":self.start,"f":self.fit,"u":self.load,"r":self.insertRegion,"g":self.fitWithTail,"h":self.historyWindow.show,"Ctrl+S":self.save,"o":self.selectDevice,"p":self.setParameter,"Ctrl+t":self.writeFlash,"c":self.setCut,"1":functools.partial(self.setCutRegion,0),"2":functools.partial(self.setCutRegion,1)}
 		for a in self.shortcuts:
 			shortcut = QtWidgets.QShortcut(QtGui.QKeySequence(a), self)
 			shortcut.activated.connect(self.shortcuts[a])
@@ -106,7 +147,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.exporter = PQG_ImageExporter(self.plot.plotItem)# pg.exporters.ImageExporter(self.plot.plotItem)
 
 		#Auto-Update Menu
-		self.autoUpdateMenu = QtGui.QMenu()
+		self.autoUpdateMenu = QtWidgets.QMenu()
 		#self.autoUpdateMenu.addAction("Interval",self.setAutoUpdateTime)
 		self.autoUpdateTimerAction = QtWidgets.QWidgetAction(self.autoUpdateMenu)
 		self.autoUpdateTimerInterval = QtWidgets.QSpinBox()
@@ -123,7 +164,6 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.splash.showMessage("<h2><font color='Black'>Connecting...</font></h2>", QtCore.Qt.AlignLeft, QtCore.Qt.black)
 		self.splash.pbar.setValue(7)
 
-		self.initializeCommunications()
 		
 		self.pending = {
 		'status':myTimer(constants.STATUS_UPDATE_INTERVAL),
@@ -134,8 +174,31 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		'autostop':myTimer(0,False),
 		'datadump':myTimer(self.regionWindow.saveAllInterval.value()*60) #convert minutes to seconds		
 		}
+
+		rateMonitorOptions = {'name':'Counts per Second', 'init':print, 'read':None,
+				'fields':['rate','average'],
+				'min':[0,0],
+				'max':[3000,3000],
+			}
+
+		vacuumMonitorOptions = {
+				'name':'Pressure Sensor',
+				'init':self.initPressureMonitor,
+				'read':self.readPressureMonitor,
+				'fields':['Pressure','Temp','Humidity'],
+				'min':[0,0,0],
+				'max':[1600,100,100],
+				}
+
+		from utilities import MCAGraphicsLib
+		self.rateMonitor = MCAGraphicsLib.RATEMONITOR(self,rateMonitorOptions)
+		if self.vacuum_enabled: 
+			self.vacMonitor = MCAGraphicsLib.RATEMONITOR(self,vacuumMonitorOptions)
 		
 		self.temperature = decayTools.temperatureHandler()
+
+		self.initializeCommunications()
+
 		
 		self.startTime = time.time()
 		self.timer = QtCore.QTimer()
@@ -150,12 +213,13 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		#self.loadPlot('DATA/212Bi.csv')
 		#self.showGammaMarkers('137Cs')
 		#self.loadPlot('DATA/eu152.dat')
-		#self.loadList('DATA/biggest_list_sample.csv')
+		#self.loadList('DATA/list_sample.csv')
 		#self.loadFromMemory('tmp2.npy',128)
 
 		self.splash.showMessage("<h2><font color='Black'>Ready!</font></h2>", QtCore.Qt.AlignLeft, QtCore.Qt.black)
 		self.splash.pbar.setValue(8)
 
+	
 	def setTheme(self,theme):
 		self.setStyleSheet("")
 		self.setStyleSheet(open(os.path.join(path["themes"],theme+".qss"), "r").read())
@@ -200,7 +264,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			self.plot.removeItem(self.markerarrow)
 			self.plot_area.removeWidget(self.plot)
 			self.plot.destroy()
-
+			
 		# Go about creating a new plot
 		pg.setConfigOptions(antialias=True, background=bg,foreground=fg)
 		self.plot=pg.PlotWidget()
@@ -247,8 +311,22 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.plot.addItem(self.markerarrow)
 		self.markerarrow.setPos(0,0)
 		self.toggleLog(self.logBox.isChecked())  #Change to log scale if necessary
-
+		self.pulseRateCounter = pulseRate()
 		
+		if self.pulsePlot:
+			self.pulsePlotLayout.removeWidget(self.pulsePlot)
+			self.pulsePlot.destroy()
+		#Create pulse plot
+		self.pulsePlot=pg.PlotWidget()
+		self.pulsePlot.setMaximumWidth(200)
+		self.pulsePlotLayout.addWidget(self.pulsePlot)
+		#self.pulsePlot.getPlotItem().hideAxis('left')
+		self.pulsePlot.getAxis('left').setGrid(200)
+		self.pulsePlot.getAxis('bottom').setGrid(200);
+		self.pulsePlot.setYRange(0,2)
+		self.pulseCurve = pg.PlotCurveItem(name = 'Signal')
+		self.pulsePlot.addItem(self.pulseCurve)
+
 	def enableCalibration(self):
 		self.calibrateOnOff.setChecked(True)
 	
@@ -287,11 +365,13 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.decayHandler = decayTools.decayHandler()
 		if self.p.connected:
 			self.listFrame.hide()
+			#print([str(bin(a)) for a in self.p.scanI2C()])
+
 			if self.p.activeSpectrum.datatype=='list':
 				traces = []
 				for b in range(self.p.activeSpectrum.parameters):
 					traces.append('%s:%d'%(self.p.portname,b+1))
-				self.updateTraceList(traces)
+				#self.updateTraceList(traces)
 				if self.p.activeSpectrum.parameters==2: #Dual list mode. Open 2D plots
 					self.listFrame.show()
 					from utilities import plot3DTools
@@ -300,12 +380,14 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 						del self.surfacePlot
 					self.surfacePlot = plot3DTools.surface3d(self,self.p.activeSpectrum.HISTOGRAM2D,self.p.activeSpectrum.BINS2D)
 			else:
-				self.updateTraceList(['%s'%self.p.portname])
+				pass
+				#self.updateTraceList(['%s'%self.p.portname])
 
 			try:
 				self.setTotalBins(self.p.total_bins)
 				self.version_number = float(self.p.version[-3:])
 				self.decayHandler.interval = self.regionWindow.decayInterval.value()
+				self.pulseRateCounter.clear()
 				#self.p.setSqr1(2000,10) #TODO : REMOVE in production
 
 			except Exception as e:
@@ -319,12 +401,11 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		else:
 			self.showStatus("System Status | Connected to device. Version : %s"%(self.p.version))
 			self.setWindowTitle("CSpark Research : %s"%(self.p.name))
-			if self.p.VOLTMETER_ENABLED:
-				self.enableTemperatureMonitor(True)
-			if self.p.CCS_ENABLED:  #Current source monitoring is only available from version 2.0 onwards, and in alpha detector integrated boards only
-				self.enableCurrentMonitor(True)
-
-
+			#if self.p.VOLTMETER_ENABLED:
+			#	self.enableTemperatureMonitor(True)
+			#if self.p.CCS_ENABLED:  #Current source monitoring is only available from version 2.0 onwards, and in alpha detector integrated boards only
+			#	self.enableCurrentMonitor(True)
+			
 		self.makeBottomMenu()
 
 		self.plot.setLimits(xMin=0,xMax=self.total_bins,yMin=0,yMax=(1<<32));self.plot.setXRange(0,self.total_bins)
@@ -357,14 +438,27 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		#self.pileUpAction.triggered.connect(menu.show)
 		#menu.addAction(self.pileUpAction)
 
-		self.coincidencegate = QtWidgets.QAction('External Gate', menu, checkable=True)
-		self.coincidencegate.triggered.connect(self.externalGate)
-		self.coincidencegate.triggered.connect(menu.show)
-		menu.addAction(self.coincidencegate)
+		#self.coincidencegate = QtWidgets.QAction('External Gate', menu, checkable=True)
+		#self.coincidencegate.triggered.connect(self.externalGate)
+		#self.coincidencegate.triggered.connect(menu.show)
+		#menu.addAction(self.coincidencegate)
 
+		###### Constant current source and voltmeter monitors ######
+		menu.addSeparator()
+		self.CCSMonitor = QtWidgets.QAction('Monitor Current Source', menu, checkable=True)
+		self.CCSMonitor.triggered.connect(self.enableCurrentMonitor)
+		menu.addAction(self.CCSMonitor)
+
+		self.TMonitor = QtWidgets.QAction('Monitor Temperature', menu, checkable=True)
+		self.TMonitor.triggered.connect(self.enableTemperatureMonitor)
+		menu.addAction(self.TMonitor)
+
+
+		menu.addSeparator()
 
 		menu.addAction('Set Window Opacity', self.setOpacity)
 		menu.addAction('Save Window as Svg', self.exportSvg)
+		menu.addAction('Enable Pressure Monitor(optional)', self.vacMonitor.launch)
 
 		#Theme
 		self.themeAction = QtWidgets.QWidgetAction(menu)
@@ -418,21 +512,31 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 					self.p.activeSpectrum.selectDataset(num-1)
 				except:
 					pass
+
+	'''
 	def updateTraceList(self,traces):
 		self.activeTrace.clear()
 		for a in traces:
 			self.activeTrace.addItem(a)
 
-	'''
 	def pileUpRejection(self,state):
 		if not self.checkConnectionStatus():return
 		if self.p.PILEUP_REJECT_ENABLED:
 			self.p.pileupRejection(state)
-	'''
+
 	def externalGate(self,state):
 		if not self.checkConnectionStatus():return
 		if self.p.EXTERNAL_TRIGGER_ENABLED:
 			self.p.externalGate(state)
+	'''
+	def initPressureMonitor(self):
+		if not self.checkConnectionStatus():return [0,0,0]
+		return self.p.BMP280_init()
+	def readPressureMonitor(self):
+		if not self.checkConnectionStatus():
+			return [0,0,0]
+		return self.p.BMP280_all()
+		
 
 	def setPlotColor(self,state):
 		self.switchingPlot = True
@@ -472,7 +576,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		#self.setTheme("default")
 		if not self.checkConnectionStatus():return
 		if self.progressBar.isEnabled():
-			self.progressBar.setValue(self.pending['update'].progress())
+			self.progressBar.setValue(int(self.pending['update'].progress()))
 
 		if self.pending['status'].ready():
 			self.updateStatus()
@@ -481,6 +585,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			self.p.stopHistogram()
 			self.pending['autostop'].deactivate()
 			self.showStatus('Stopped Acquisition',True)
+			self.load()
 
 
 		if self.currentMonitorAvailable:
@@ -523,7 +628,9 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 				self.y = self.p.activeSpectrum.getHistogram(trace=0)
 
 			#self.showStatus("System Status | Data Refreshed : %s"%time.ctime())
-			m, s = divmod(time.time() - self.startTime, 60)
+			T = self.pending['autostop']
+			T = time.time() - self.startTime
+			m, s = divmod(T, 60)
 			h, m = divmod(m, 60)
 			ST = "%d:%02d:%02d" % (h, m, s)
 			self.clearButton.setText('CLEAR %s'%(ST))
@@ -543,7 +650,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		TEMP = kwargs.get('temp',self.temperature.get())
 		if kwargs.get('resetTemperature',False):self.temperature.clear()
 
-		self.historyWindow.addSpectrum(np.copy(self.y), time = TIME,temp = TEMP)
+		self.historyWindow.addSpectrum(np.copy(self.p.activeSpectrum.getHistogram()), time = TIME,temp = TEMP)
 
 	def insertRegion(self):
 		R = decayTools.regionWidget(self.plot,self.deleteRegion,self.p.activeSpectrum.calPolyInv if self.calibrationEnabled else np.poly1d([1,0]),len(self.regionWindow.regions))
@@ -577,6 +684,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			self.deviceSelector.setList(L,self.p)
 			#Check for, and handle disconnect event
 			if self.p.connected:
+				if platform.system() == "Windows": return #Ignore disconnect event on windows
 				if self.p.portname not in L:
 						self.showStatus('Device Disconnected',True)
 						self.setWindowTitle('Error : Device Disconnected')
@@ -606,7 +714,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 	class portSelectionDialog(QtWidgets.QDialog):
 		def __init__(self,parent=None):
 			super(AppWindow.portSelectionDialog, self).__init__(parent)
-			self.button_layout = QtGui.QVBoxLayout()
+			self.button_layout = QtWidgets.QVBoxLayout()
 			self.setLayout(self.button_layout)
 			self.btns=[]
 			self.doneButton = QtWidgets.QPushButton("Done")
@@ -664,9 +772,75 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			if val<8e6:
 				self.p.setSqr1(val,10)
 
+	def setCut(self):
+		if self.p.activeSpectrum.datatype=='hist':
+			QtWidgets.QMessageBox.information(self, 'Not Available', 'Not for histogram data. Only list mode.')
+			return
+		
+		if not len(self.regionWindow.regions):
+			QtWidgets.QMessageBox.information(self, 'Not Available', 'No region inserted. Press R to insert and position')
+			return
+
+		start,end=self.regionWindow.regions[0].region.getRegion() #choose the first region
+		b1text = 'Set trace 1(blue) to only events where trace 2(red) is between %.1f and %.1f'%(start,end)
+		b2text = 'Set trace 2(red) to only events where trace 1(blue) is between %.1f and %.1f'%(start,end)
+		self.gateDialog = regionPopup.gateDialog(self,b1 = b1text, b2= b2text)
+		self.gateDialog.setStyleSheet('color:black');
+		retval = self.gateDialog.exec_()
+		if not retval:
+			return
+		option = self.gateDialog.options.checkedId()
+		print(option)
+		if option == -2 : #option 1
+			self.setCutRegion(0)
+		elif option == -3 : #option 2
+			self.setCutRegion(1)
+		elif option == -4 : #option 3  . reset all gates
+			self.setCutRegion(-1)
+		else:
+			QtWidgets.QMessageBox.information(self, 'Not Available', 'Please select one')
+			
+
+
+	def setCutRegion(self,channel=0):
+		if self.p.activeSpectrum.datatype=='hist':
+			print('not for histograms')
+			return
+		start,end=self.regionWindow.regions[0].region.getRegion() #choose the first region
+		if channel == -1: #reset gates
+			start =0; end=0; channel = 0 
+		self.p.activeSpectrum.cut(start,end,trace = channel)
+		self.toggleLog(self.logBox.isChecked())
+		self.calibrateOnOff.setChecked(False)
+		self.calibrateOnOff.setChecked(True)
+
+
+	def setParameter(self):
+		if not self.checkConnectionStatus(True):return
+		val,ok = QtWidgets.QInputDialog.getText(self,"Set Parameter", 'Enter Parameter name')
+		if ok :
+				val2,ok = QtWidgets.QInputDialog.getInt(self,"Enter Value", 'Enter Parameter Value')
+				if ok:
+					val = str(val.strip())
+					self.p.setParameter(val.upper(), val2)
+
+	def writeFlash(self):
+		if not self.checkConnectionStatus(True):return
+		try:
+			val = self.p.readBulkFlash(2000)
+			val = val.split(b'\0')[0]
+			val = val.decode()
+		except:
+			val = 'enter conf...'
+		val,ok = QtWidgets.QInputDialog.getMultiLineText(self,"Edit Configuration", 'Enter Configuration Text',val)
+		if ok :
+			val = str(val.strip())
+			self.p.writeBulkFlash(val+'\0')
+
+
 	def set_threshold(self):
 		if not self.checkConnectionStatus(True):return
-		val,ok = QtWidgets.QInputDialog.getInt(self,"Set Threshold", 'Enter Number of initial channels to reject [0 -> x].',self.p.threshold,0,1000)
+		val,ok = QtWidgets.QInputDialog.getInt(self,"Set Threshold", 'Enter Number of initial channels to reject [0 -> x].',self.p.threshold,0,4000)
 		if ok :
 			self.p.setThreshold(val)
 
@@ -688,6 +862,14 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			app.quit()
 			#sys.exit()
 
+	def pulseStretch(self):
+		if self.pulseStretchState:
+			self.pulseStretchState = False
+			self.pulseStretchButton.setText('PULSE')
+		else:
+			self.pulseStretchState = True
+			self.pulseStretchButton.setText('STRETCHED')
+			
 	def updateStatus(self):
 		if not self.checkConnectionStatus():
 			self.countLabel.setText('Not Connected')
@@ -695,11 +877,37 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		try:
 			state,cnt = self.p.getStatus()
 			self.currentState = state
-			if not self.currentState: return
+			if self.vacuum_enabled :
+				if self.vacMonitor.isVisible():
+					self.vacMonitor.setValue(self.vacMonitor.read())
+
+			if not self.currentState: #Histogram acquisition is paused.
+				if self.p.SCOPE_ENABLED and self.SCOPE_ENABLED and time.time() > self.scope_ready_time:
+					self.pulsePlotFrame.show()
+					NS = 2000
+					TG = 0.5
+					w = 40
+					y = self.p.calPoly10(self.p.__retrieveBufferData__(0, self.p.samples))
+					y = self.p.get_filtered_pulse(y,w)
+					x = np.linspace(0, 1e-3 * self.p.timebase * len(y), w)
+					if(y.max()>0.05):
+						pen = pg.mkPen((255,255,0), width=2)
+						self.pulseCurve.setData(x,y, pen=pen)									
+					self.p.capture_init(0, NS, TG, self.pulseStretchState)
+					#time.sleep(1e-6 * self.p.samples * self.p.timebase + 0.1)
+					self.scope_ready_time = time.time()+1e-6 * self.p.samples * self.p.timebase + 0.1
+
+				return
+
+			self.pulsePlotFrame.hide()
+			self.pulseRateCounter.addPoint(time.time(),cnt)
+			self.rateMonitor.setValue(self.pulseRateCounter.getBothRates())
+			#self.rateMonitor.setValue([self.pulseRateCounter.getRate()])
 			if self.p.activeSpectrum.datatype=='list':
 				self.p.sync()
-			state,cnt = self.p.getStatus()
-			self.currentState = state
+			
+			#state,cnt = self.p.getStatus()
+			#self.currentState = state
 			if self.p.activeSpectrum.datatype=='list':
 				T = time.time()-self.startTime
 				if self.p.activeSpectrum.parameters==2:
@@ -726,6 +934,15 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		except Exception as e:
 			self.countLabel.setText('Disconnect!')
 			print(e)
+			self.showStatus('Device Disconnected',True)
+			if platform.system() == "Windows": 
+				QtWidgets.QMessageBox.warning(self, 'Connection Error', 'Device Disconnected. Please check the connections')
+				try:
+					self.p.portname = None
+					self.p.fd.close()
+					self.p.connected = False
+				except:pass
+
 			#self.p.fd.close()
 
 	def updateCurrent(self):
@@ -754,6 +971,8 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		'''
 		if not self.checkConnectionStatus(True):return
 		self.p.startCount()
+	def launchRateMonitor(self):
+		self.rateMonitor.launch()
 
 	def stateHighlight(self,state):
 		self.startButton.setProperty("class", "active" if state else "") ; self.startButton.style().unpolish(self.startButton); self.startButton.style().polish(self.startButton)
@@ -761,9 +980,13 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 	def start(self):
 		if not self.checkConnectionStatus(True):return
+		
+		self.SCOPE_ENABLED = False
 
 		self.startDialog = regionPopup.startDialog(self,threshold = self.p.threshold,autoRefresh = self.autoUpdateTimerInterval.value())
-		self.startDialog.exec_()
+		retval = self.startDialog.exec_()
+		if not retval:
+			return
 		self.p.threshold = self.startDialog.getThreshold()
 		self.autoUpdateTimerInterval.setValue(self.startDialog.getRefreshInterval())
 		stoptime = self.startDialog.stopBox.value()
@@ -778,14 +1001,20 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 			self.showStatus("Acquisition Started : %s. Stop after %d seconds"%(time.ctime(),stoptime))
 			print('acquisition will automatically stop after %d seconds'%stoptime)
 
+
+		if self.p.SCOPE_ENABLED:
+			self.pulsePlotFrame.hide()
+
 		self.p.startHistogram()
 		self.stateHighlight(True)
+		self.pulseRateCounter.clear()
 		
 	def pause(self):
 		if not self.checkConnectionStatus(True):return
 		self.showStatus("System Status | Acquisition Stopped : %s"%time.ctime())
 		self.p.stopHistogram()
 		self.stateHighlight(False)
+		self.SCOPE_ENABLED = True
 
 	def clear(self):
 		reply = QtWidgets.QMessageBox.question(self, 'Warning', 'Clear the entire histogram?\nThis will erase data stored in the hardware also.', QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.Yes)
@@ -850,7 +1079,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 	def refreshPlot(self):
 		x = self.p.activeSpectrum.xaxis(self.calibrationEnabled)
 		if self.plotAEnabled.isChecked():
-			self.curve.setData(x,self.y[:-1], stepMode=True, fillLevel=0,pen = self.pen,brush=self.brush)#, brush=brush,pen = pen)
+			self.curve.setData(x,self.y[:-1], stepMode='center', fillLevel=0,pen = self.pen,brush=self.brush)#, brush=brush,pen = pen)
 		else:
 			self.curve.clear()
 		yMax = max(self.y[:-2])*1.05
@@ -874,19 +1103,44 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.regionWindow.show()
 		self.regionWindow.activateWindow() #tabWidget.setCurrentWidget(self.additionalParameters)
 	def getData(self):
-		return self.p.activeSpectrum.xaxis(self.calibrationEnabled),self.y
+		return self.p.activeSpectrum.xaxis(self.calibrationEnabled),self.p.activeSpectrum.getHistogram()
 
 	def summationRaw(self):
 		sums = []
 		x = self.p.activeSpectrum.xaxis(self.calibrationEnabled)
+		YDATA = self.p.activeSpectrum.getHistogram()
 		for a in self.regionWindow.regions:
 			start,end=a.region.getRegion()
 			start = self.closestIndex(x,start)
 			end = self.closestIndex(x,end)
-			sums.append([a,x[start],x[end],sum(self.y[start:end])])
+			sums.append([a,x[start],x[end],sum(YDATA[start:end])])
 		return sums
 
+
+	def selectTraceManually(self):
+		if self.p.activeSpectrum.datatype=='list':
+			if self.p.activeSpectrum.parameters==2:
+				msgbox = QtWidgets.QMessageBox()
+				msgbox.setIcon(QtWidgets.QMessageBox.Information)
+				msgbox.setText('Set the dataset for this operation[Default 1]')
+				msgbox.setWindowTitle("Select Input")
+				msgbox.addButton(QtWidgets.QMessageBox.Yes)
+				msgbox.addButton(QtWidgets.QMessageBox.No)
+				msgbox.button(msgbox.No).setText("Input 1(Blue)")
+				msgbox.button(msgbox.Yes).setText("Input 2(Red)")
+				reply = msgbox.exec_()
+				if reply == QtWidgets.QMessageBox.No:
+					print("Chose trace 1")
+					self.changeActiveTrace("T:1")
+					self.selectTraceButton.setText("Trace 1")
+				else:
+					print("Chose trace 2")
+					self.changeActiveTrace("T:2")
+					self.selectTraceButton.setText("Trace 2")
+
+
 	def summation(self):
+		self.selectTraceManually()
 		vals = self.summationRaw()
 		msg = ''
 		if vals == []: #No regions present / x is empty
@@ -909,6 +1163,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 
 	def fit(self,**kwargs):
 		#self.calibWindow.show()
+		self.selectTraceManually()
 
 		if not self.p.activeSpectrum.hasData():
 			QtWidgets.QMessageBox.information(self, 'Data Unavailable ', 'please acquire a spectrum')
@@ -1105,7 +1360,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		self.clearFits()
 
 		head, tail = os.path.split(filename)
-		self.updateTraceList(['%s'%tail])
+		#self.updateTraceList(['%s'%tail])
 
 		#self.recordToHistory(time = self.spectrumTime)
 
@@ -1118,7 +1373,7 @@ class AppWindow(QtWidgets.QMainWindow, layout.Ui_MainWindow):
 		head, tail = os.path.split(self.p.activeSpectrum.filename)
 		for b in range(self.p.activeSpectrum.parameters):
 			traces.append('%s:%d'%(tail,b+1))
-		self.updateTraceList(traces)
+		#self.updateTraceList(traces)
 		self.clearPlot()
 		self.toggleLog(self.logBox.isChecked())
 		self.tabWidget.setCurrentIndex(0)
@@ -1221,18 +1476,18 @@ def translators(langDir, lang=None):
 	create a list of translators
 	@param langDir a path containing .qm translation
 	@param lang the preferred locale, like en_IN.UTF-8, fr_FR.UTF-8, etc.
-	@result a list of QtCore.QTranslator instances
+	@result a list of QtCore.Qtranslator instances
 	"""
 	if lang==None:
 			lang=QtCore.QLocale.system().name()
 	result=[]
-	qtTranslator=QtCore.QTranslator()
+	qtTranslator=QtCore.Qtranslator()
 	qtTranslator.load("qt_" + lang,
 			QtCore.QLibraryInfo.location(QtCore.QLibraryInfo.TranslationsPath))
 	result.append(qtTranslator)
 
 	# path to the translation files (.qm files)
-	sparkTranslator=QtCore.QTranslator()
+	sparkTranslator=QtCore.Qtranslator()
 	sparkTranslator.load(lang, langDir);
 	result.append(sparkTranslator)
 	return result
@@ -1301,7 +1556,7 @@ def showSplash(pth = "splash"):
 
 	QProgressBar {
 		border: 2px solid grey;
-		border-radius: 5px;
+		border-radius: 5px;	
 		border: 2px solid grey;
 		border-radius: 5px;
 		text-align: center;
@@ -1352,8 +1607,7 @@ if __name__ == "__main__":
 	splash.pbar.setValue(3)
 	from scipy import optimize 
 	from scipy.optimize import curve_fit,leastsq
-	from scipy.misc import factorial
-
+	
 	splash.showMessage("<h2><font color='Black'>Importing PyQtgraph...</font></h2>", QtCore.Qt.AlignLeft, QtCore.Qt.black)
 	splash.pbar.setValue(4)
 	import pyqtgraph as pg

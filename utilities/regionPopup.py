@@ -2,7 +2,7 @@
 import sys,os,time,re
 
 from .Qt import QtCore,QtWidgets
-from . templates import ui_regionPopup2,ui_regionWidget,ui_startDialog
+from . templates import ui_regionPopup2,ui_regionWidget,ui_startDialog,ui_gate
 import pyqtgraph as pg
 import numpy as np
 from . import decayTools
@@ -19,6 +19,13 @@ class startDialog(QtWidgets.QDialog, ui_startDialog.Ui_Dialog):
 		return self.refreshBox.value()
 	def getThreshold(self):
 		return self.thresholdBox.value()
+
+class gateDialog(QtWidgets.QDialog, ui_gate.Ui_Dialog):
+	def __init__(self, parent,**kwargs):
+		super(gateDialog, self).__init__(parent, QtCore.Qt.WindowStaysOnTopHint)
+		self.setupUi(self)
+		self.b1.setText(kwargs.get('b1',''))
+		self.b2.setText(kwargs.get('b2',''))
 
 
 class AppWindow(QtWidgets.QDockWidget, ui_regionPopup2.Ui_DockWidget):

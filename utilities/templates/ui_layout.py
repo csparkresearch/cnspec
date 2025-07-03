@@ -2,16 +2,18 @@
 
 # Form implementation generated from reading ui file 'layout.ui'
 #
-# Created by: PyQt5 UI code generator 5.10.1
+# Created by: PyQt5 UI code generator 5.14.1
 #
 # WARNING! All changes made in this file will be lost!
 
+
 from PyQt5 import QtCore, QtGui, QtWidgets
+
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(795, 578)
+        MainWindow.resize(795, 634)
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap(":/control/plots.svg"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         MainWindow.setWindowIcon(icon)
@@ -56,12 +58,9 @@ class Ui_MainWindow(object):
         self.extraLayout.setContentsMargins(0, 0, 0, 0)
         self.extraLayout.setSpacing(3)
         self.extraLayout.setObjectName("extraLayout")
-        self.label_2 = QtWidgets.QLabel(self.frame)
-        self.label_2.setObjectName("label_2")
-        self.extraLayout.addWidget(self.label_2)
-        self.activeTrace = QtWidgets.QComboBox(self.frame)
-        self.activeTrace.setObjectName("activeTrace")
-        self.extraLayout.addWidget(self.activeTrace)
+        self.selectTraceButton = QtWidgets.QPushButton(self.frame)
+        self.selectTraceButton.setObjectName("selectTraceButton")
+        self.extraLayout.addWidget(self.selectTraceButton)
         self.pushButton_6 = QtWidgets.QPushButton(self.frame)
         icon2 = QtGui.QIcon()
         icon2.addPixmap(QtGui.QPixmap("saveall.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
@@ -159,6 +158,36 @@ class Ui_MainWindow(object):
         self.pauseButton.setObjectName("pauseButton")
         self.acquisitionLayout.addWidget(self.pauseButton, 0, 1, 1, 2)
         self.verticalLayout.addWidget(self.acquisitionFrame)
+        self.pulsePlotFrame = QtWidgets.QFrame(self.widgets)
+        self.pulsePlotFrame.setMinimumSize(QtCore.QSize(0, 100))
+        self.pulsePlotFrame.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.pulsePlotFrame.setFrameShadow(QtWidgets.QFrame.Plain)
+        self.pulsePlotFrame.setObjectName("pulsePlotFrame")
+        self.pulsePlotLayout = QtWidgets.QVBoxLayout(self.pulsePlotFrame)
+        self.pulsePlotLayout.setContentsMargins(0, 0, 0, 0)
+        self.pulsePlotLayout.setSpacing(0)
+        self.pulsePlotLayout.setObjectName("pulsePlotLayout")
+        self.frame_2 = QtWidgets.QFrame(self.pulsePlotFrame)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.frame_2.sizePolicy().hasHeightForWidth())
+        self.frame_2.setSizePolicy(sizePolicy)
+        self.frame_2.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        self.frame_2.setFrameShadow(QtWidgets.QFrame.Raised)
+        self.frame_2.setObjectName("frame_2")
+        self.horizontalLayout = QtWidgets.QHBoxLayout(self.frame_2)
+        self.horizontalLayout.setContentsMargins(0, 0, 0, 0)
+        self.horizontalLayout.setSpacing(2)
+        self.horizontalLayout.setObjectName("horizontalLayout")
+        self.pulseStretchButton = QtWidgets.QPushButton(self.frame_2)
+        self.pulseStretchButton.setObjectName("pulseStretchButton")
+        self.horizontalLayout.addWidget(self.pulseStretchButton)
+        self.pushButton = QtWidgets.QPushButton(self.frame_2)
+        self.pushButton.setObjectName("pushButton")
+        self.horizontalLayout.addWidget(self.pushButton)
+        self.pulsePlotLayout.addWidget(self.frame_2)
+        self.verticalLayout.addWidget(self.pulsePlotFrame)
         self.countLabel = QtWidgets.QPushButton(self.widgets)
         font = QtGui.QFont()
         font.setPointSize(10)
@@ -356,9 +385,9 @@ class Ui_MainWindow(object):
         self.temperatureLabel.setFont(font)
         self.temperatureLabel.setObjectName("temperatureLabel")
         self.verticalLayout.addWidget(self.temperatureLabel)
-        self.verticalLayout.setStretch(1, 1)
-        self.verticalLayout.setStretch(4, 1)
-        self.verticalLayout.setStretch(8, 2)
+        self.verticalLayout.setStretch(2, 1)
+        self.verticalLayout.setStretch(5, 1)
+        self.verticalLayout.setStretch(9, 2)
         self.verticalLayout_3.addWidget(self.widgets)
         self.controlDock.setWidget(self.dockWidgetContents)
         MainWindow.addDockWidget(QtCore.Qt.DockWidgetArea(1), self.controlDock)
@@ -377,13 +406,14 @@ class Ui_MainWindow(object):
         self.fitButton.clicked.connect(MainWindow.fit)
         self.pauseButton.clicked.connect(MainWindow.pause)
         self.pushButton_6.clicked.connect(MainWindow.save)
-        self.countLabel.clicked.connect(MainWindow.clearCount)
         self.addButton.clicked.connect(MainWindow.addSelectedPoint)
         self.addButton_3.clicked.connect(MainWindow.removeRegion)
         self.autoUpdateBox.clicked['bool'].connect(MainWindow.autoUpdateEnable)
         self.coincidenceLabel.clicked.connect(MainWindow.launch3D)
-        self.activeTrace.currentIndexChanged['QString'].connect(MainWindow.changeActiveTrace)
         self.pushButton_2.clicked.connect(MainWindow.setListSaveFilename)
+        self.countLabel.clicked.connect(MainWindow.launchRateMonitor)
+        self.selectTraceButton.clicked.connect(MainWindow.selectTraceManually)
+        self.pulseStretchButton.clicked.connect(MainWindow.pulseStretch)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
@@ -393,9 +423,9 @@ class Ui_MainWindow(object):
         self.tabWidget.setTabToolTip(self.tabWidget.indexOf(self.mainTab), _translate("MainWindow", "Data Acquisition and controls"))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.saveTab), _translate("MainWindow", "Saved plots"))
         self.tabWidget.setTabToolTip(self.tabWidget.indexOf(self.saveTab), _translate("MainWindow", "<html><head/><body><p><span style=\" font-size:14pt;\">View saved plots. Click on them to load them to the plot window for analysis.</span></p><p><span style=\" font-size:14pt;\">Automatically generates a thumbnail view for the chosen directory</span></p></body></html>"))
-        self.label_2.setText(_translate("MainWindow", "Active Trace:"))
+        self.selectTraceButton.setText(_translate("MainWindow", "Trace 1"))
         self.pushButton_6.setToolTip(_translate("MainWindow", "Save acquired data as well as fitted data if any."))
-        self.pushButton_6.setText(_translate("MainWindow", "Save Data"))
+        self.pushButton_6.setText(_translate("MainWindow", "Save Histogram"))
         self.controlDock.setWindowTitle(_translate("MainWindow", "Instrument Controls"))
         self.startButton.setToolTip(_translate("MainWindow", "Start acquiring and sorting pulses"))
         self.startButton.setText(_translate("MainWindow", "START"))
@@ -407,6 +437,8 @@ class Ui_MainWindow(object):
         self.clearButton.setText(_translate("MainWindow", "CLEAR"))
         self.pauseButton.setToolTip(_translate("MainWindow", "Pause data acquisition"))
         self.pauseButton.setText(_translate("MainWindow", "STOP   "))
+        self.pulseStretchButton.setText(_translate("MainWindow", "PULSE"))
+        self.pushButton.setText(_translate("MainWindow", "STOP"))
         self.countLabel.setToolTip(_translate("MainWindow", "Total Input Pulses. Click to clear the counter"))
         self.plotBEnabled.setText(_translate("MainWindow", "B"))
         self.coincidenceLabel.setText(_translate("MainWindow", "Coincidence: ?"))
@@ -435,6 +467,5 @@ class Ui_MainWindow(object):
         self.temperatureLabel.setToolTip(_translate("MainWindow", "Constant Current Source output voltage.\n"
 "Colour changes to green for valid loads"))
         self.temperatureLabel.setText(_translate("MainWindow", "temperature:"))
-
 from utilities.animTools import AnimatedFrame
 from . import res_rc

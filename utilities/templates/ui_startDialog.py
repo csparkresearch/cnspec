@@ -2,16 +2,18 @@
 
 # Form implementation generated from reading ui file 'startDialog.ui'
 #
-# Created by: PyQt5 UI code generator 5.10.1
+# Created by: PyQt5 UI code generator 5.14.1
 #
 # WARNING! All changes made in this file will be lost!
 
+
 from PyQt5 import QtCore, QtGui, QtWidgets
+
 
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
         Dialog.setObjectName("Dialog")
-        Dialog.resize(436, 202)
+        Dialog.resize(436, 219)
         Dialog.setStyleSheet("color: rgb(46, 52, 54);")
         self.gridLayout = QtWidgets.QGridLayout(Dialog)
         self.gridLayout.setObjectName("gridLayout")
@@ -19,6 +21,7 @@ class Ui_Dialog(object):
         self.message_2.setObjectName("message_2")
         self.gridLayout.addWidget(self.message_2, 3, 0, 2, 1)
         self.stopBox = QtWidgets.QSpinBox(Dialog)
+        self.stopBox.setMaximum(1000000)
         self.stopBox.setObjectName("stopBox")
         self.gridLayout.addWidget(self.stopBox, 2, 1, 1, 3)
         self.message = QtWidgets.QLabel(Dialog)
@@ -33,9 +36,11 @@ class Ui_Dialog(object):
         self.message_3.setObjectName("message_3")
         self.gridLayout.addWidget(self.message_3, 2, 0, 1, 1)
         self.refreshBox = QtWidgets.QSpinBox(Dialog)
+        self.refreshBox.setMaximum(300)
         self.refreshBox.setObjectName("refreshBox")
         self.gridLayout.addWidget(self.refreshBox, 5, 1, 1, 3)
         self.thresholdBox = QtWidgets.QSpinBox(Dialog)
+        self.thresholdBox.setMaximum(2000)
         self.thresholdBox.setObjectName("thresholdBox")
         self.gridLayout.addWidget(self.thresholdBox, 3, 1, 1, 3)
         self.message_4 = QtWidgets.QLabel(Dialog)
@@ -50,6 +55,9 @@ class Ui_Dialog(object):
         self.buttonBox.accepted.connect(Dialog.accept)
         self.buttonBox.rejected.connect(Dialog.reject)
         QtCore.QMetaObject.connectSlotsByName(Dialog)
+        Dialog.setTabOrder(self.stopBox, self.thresholdBox)
+        Dialog.setTabOrder(self.thresholdBox, self.refreshBox)
+        Dialog.setTabOrder(self.refreshBox, self.clearBox)
 
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
@@ -59,4 +67,3 @@ class Ui_Dialog(object):
         self.message_3.setText(_translate("Dialog", "Stop automatically after(seconds)"))
         self.message_4.setText(_translate("Dialog", "Auto-refresh histogram(seconds)"))
         self.clearBox.setText(_translate("Dialog", "Clear Old Spectrum"))
-

@@ -29,7 +29,7 @@ def htmlfy_fit(vals):
 def htmlfy_p(msg,color='blue'):
 	return '''<p style="color:%s;">%s</p>'''%(color,msg)
 	
-class calibWidget(QtGui.QWidget,ui_calibWidget.Ui_Form):
+class calibWidget(QtWidgets.QWidget,ui_calibWidget.Ui_Form):
 	def __init__(self,channel,energy,onDelete,updatePoly):
 		super(calibWidget, self).__init__()
 		self.setupUi(self)
@@ -48,11 +48,13 @@ class calibWidget(QtGui.QWidget,ui_calibWidget.Ui_Form):
 		self.onDelete(self)
 		self.updatePoly()
 
-class calibrationTab(QtGui.QFrame,calibration.Ui_Frame):
+class calibrationTab(QtWidgets.QFrame,calibration.Ui_Frame):
 	def __init__(self,onReload,*args,**kwargs):
 		super(calibrationTab, self).__init__()
 		self.setupUi(self)
 		self.showSpectrum = kwargs.get('tabControl',None)
+		self.fitList = []
+		self.actuals = []
 
 		#CALIBRATION ROUTINES
 
@@ -81,6 +83,7 @@ class calibrationTab(QtGui.QFrame,calibration.Ui_Frame):
 		R.setParent(None)
 		self.rows.remove(R)
 
+	'''
 	def reloadPoints(self,points=[]):
 		for R in self.rows:
 			R.setParent(None)
@@ -92,7 +95,8 @@ class calibrationTab(QtGui.QFrame,calibration.Ui_Frame):
 			
 		self.updatePolyString()
 
-		
+	'''
+
 	def addPoint(self):
 		self.addPair(0,0)
 		
@@ -171,17 +175,17 @@ class calibrationTab(QtGui.QFrame,calibration.Ui_Frame):
 		self.actuals = []
 		self.log(htmlfy_fit(fitList))
 		for a in self.fitList:
-			item = QtGui.QTableWidgetItem(); self.table.setItem(row,0,item); item.setText('%s'%a['region']) #Region
-			item = QtGui.QTableWidgetItem(); self.table.setItem(row,1,item); item.setText('%.2f'%a['amplitude']) #Amplitude
-			item = QtGui.QTableWidgetItem(); self.table.setItem(row,2,item); item.setText('%.2f'%a['centroid']) #Centroid
-			item = QtGui.QTableWidgetItem(); self.table.setItem(row,3,item); item.setText('%.3f (%.1f %%)'%(a['fwhm'],100*a['fwhm']/a['centroid'])) #FWHM
+			item = QtWidgets.QTableWidgetItem(); self.table.setItem(row,0,item); item.setText('%s'%a['region']) #Region
+			item = QtWidgets.QTableWidgetItem(); self.table.setItem(row,1,item); item.setText('%.2f'%a['amplitude']) #Amplitude
+			item = QtWidgets.QTableWidgetItem(); self.table.setItem(row,2,item); item.setText('%.2f'%a['centroid']) #Centroid
+			item = QtWidgets.QTableWidgetItem(); self.table.setItem(row,3,item); item.setText('%.3f (%.1f %%)'%(a['fwhm'],100*a['fwhm']/a['centroid'])) #FWHM
 
 
 			icon = QtGui.QIcon()
 			icon.addPixmap(QtGui.QPixmap(":/control/plus.svg"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
 
 			fn = functools.partial(self.applyCal,row)
-			item = QtGui.QPushButton(); item.clicked.connect(fn) # Append point to calibration
+			item = QtWidgets.QPushButton(); item.clicked.connect(fn) # Append point to calibration
 			item.setIcon(icon)
 			self.table.setCellWidget(row, 4, item)
 			self.actuals.append(item)
@@ -193,7 +197,7 @@ class calibrationTab(QtGui.QFrame,calibration.Ui_Frame):
 			self.actuals.append(item)
 			
 			fn = functools.partial(self.applyCal,row)
-			item = QtGui.QPushButton();item.setText('Add to Calibration'); item.clicked.connect(fn)
+			item = QtWidgets.QPushButton();item.setText('Add to Calibration'); item.clicked.connect(fn)
 			self.table.setCellWidget(row, 5, item)
 			'''
 			row+=1
@@ -210,7 +214,7 @@ class calibrationTab(QtGui.QFrame,calibration.Ui_Frame):
 	
 
 	def save(self):  #Save as CSV
-		path = QtGui.QFileDialog.getSaveFileName(self, 'Save File', '~/', 'CSV(*.csv)')
+		path = QtWidgets.QFileDialog.getSaveFileName(self, 'Save File', '~/', 'CSV(*.csv)')
 		if path:
 			#check if file extension is CSV
 			if path[-3:] not in ['csv','txt','dat'] :
@@ -219,7 +223,7 @@ class calibrationTab(QtGui.QFrame,calibration.Ui_Frame):
 
 	def writeToPath(self,path):
 		import csv
-		with open(unicode(path), 'wb') as stream:
+		with open(str(path, 'utf-8') , 'wb') as stream: #Unicode of python2 is equivalent to str of python3
 			delim = [' ','\t',',',';']
 			writer = csv.writer(stream, delimiter = delim[self.delims.currentIndex()])
 			headers = []
@@ -233,7 +237,7 @@ class calibrationTab(QtGui.QFrame,calibration.Ui_Frame):
 				for column in range(self.table.columnCount()-2):
 					item = self.table.item(row, column)
 					if item is not None:
-						rowdata.append(	unicode(item.text()).encode('utf8'))
+						rowdata.append(	str(item.text(), 'utf-8').encode('utf8'))
 					else:
 						rowdata.append('')
 				writer.writerow(rowdata)

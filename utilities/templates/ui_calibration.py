@@ -15,12 +15,12 @@ except AttributeError:
         return s
 
 try:
-    _encoding = QtGui.QApplication.UnicodeUTF8
+    _encoding = QtWidgets.QApplication.UnicodeUTF8
     def _translate(context, text, disambig):
-        return QtGui.QApplication.translate(context, text, disambig, _encoding)
+        return QtWidgets.QApplication.translate(context, text, disambig, _encoding)
 except AttributeError:
     def _translate(context, text, disambig):
-        return QtGui.QApplication.translate(context, text, disambig)
+        return QtWidgets.QApplication.translate(context, text, disambig)
 
 class Ui_Frame(object):
     def setupUi(self, Frame):
@@ -55,7 +55,7 @@ class Ui_Frame(object):
         self.splitter.setHandleWidth(10)
         self.splitter.setChildrenCollapsible(False)
         self.splitter.setObjectName(_fromUtf8("splitter"))
-        self.layoutWidget = QtGui.QWidget(self.splitter)
+        self.layoutWidget = QtWidgets.QWidget(self.splitter)
         self.layoutWidget.setObjectName(_fromUtf8("layoutWidget"))
         self.gridLayout_3 = QtGui.QGridLayout(self.layoutWidget)
         self.gridLayout_3.setMargin(0)
@@ -128,7 +128,7 @@ class Ui_Frame(object):
         self.line.setFrameShadow(QtGui.QFrame.Sunken)
         self.line.setObjectName(_fromUtf8("line"))
         self.gridLayout_2.addWidget(self.line, 0, 4, 2, 1)
-        self.pushButton_4 = QtGui.QPushButton(self.frame)
+        self.pushButton_4 = QtWidgets.QPushButton(self.frame)
         self.pushButton_4.setObjectName(_fromUtf8("pushButton_4"))
         self.gridLayout_2.addWidget(self.pushButton_4, 0, 5, 2, 1)
         self.gridLayout_3.addWidget(self.frame, 1, 0, 1, 1)
@@ -137,10 +137,10 @@ class Ui_Frame(object):
         self.gridLayout = QtGui.QGridLayout(self.calibframe)
         self.gridLayout.setContentsMargins(-1, -1, 1, -1)
         self.gridLayout.setObjectName(_fromUtf8("gridLayout"))
-        self.pushButton_2 = QtGui.QPushButton(self.calibframe)
+        self.pushButton_2 = QtWidgets.QPushButton(self.calibframe)
         self.pushButton_2.setObjectName(_fromUtf8("pushButton_2"))
         self.gridLayout.addWidget(self.pushButton_2, 2, 3, 1, 1)
-        self.pushButton_3 = QtGui.QPushButton(self.calibframe)
+        self.pushButton_3 = QtWidgets.QPushButton(self.calibframe)
         self.pushButton_3.setObjectName(_fromUtf8("pushButton_3"))
         self.gridLayout.addWidget(self.pushButton_3, 4, 2, 1, 2)
         self.polyLabel = QtGui.QLabel(self.calibframe)
@@ -179,7 +179,7 @@ class Ui_Frame(object):
         self.line_3.setFrameShadow(QtGui.QFrame.Sunken)
         self.line_3.setObjectName(_fromUtf8("line_3"))
         self.gridLayout.addWidget(self.line_3, 3, 1, 1, 3)
-        self.pushButton = QtGui.QPushButton(self.calibframe)
+        self.pushButton = QtWidgets.QPushButton(self.calibframe)
         self.pushButton.setObjectName(_fromUtf8("pushButton"))
         self.gridLayout.addWidget(self.pushButton, 2, 2, 1, 1)
         self.logBrowser = QtGui.QTextBrowser(self.calibframe)

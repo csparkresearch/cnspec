@@ -10,7 +10,7 @@ from collections import OrderedDict
 import numpy as np
 
 def htmlfy_fit(vals):
-	cols = ['#77cfbb','#b0e0e6','#98fb98','#fa8072','#d8bfd8','#ffe4e1']
+	#cols = ['#77cfbb','#b0e0e6','#98fb98','#fa8072','#d8bfd8','#ffe4e1']
 	items = len(vals[0][2])
 	html=''
 	if not items:
@@ -19,10 +19,10 @@ def htmlfy_fit(vals):
 	<tbody><tr><td colspan="%d" style="padding:5px;">Fit Results</td></tr>'''%(1+items*2)
 
 	html+='''<tr><td style="background-color:#77cfbb;">Time,Temp</td>'''
-	for a in range(items):
-		html+='''<td style="background-color:%s;">Centroid</td><td style="background-color:%s;">FWHM</td>'''%(cols[a],cols[a])
+	for a in vals[0][2]: #Iterate through the fit results dictionary
+		col = "rgba(%d,%d,%d,%d);"%(a['col'][0],a['col'][1],a['col'][2],255)
+		html+='''<td style="background-color:%s;">Centroid</td><td style="background-color:%s;">FWHM</td>'''%(col,col)
 	html+='</tr>'
-
 	for row in vals: #row = [time,temperature,FITS]
 		m, s = divmod(row[0], 60)
 		h, m = divmod(m, 60)
@@ -68,7 +68,7 @@ class AppWindow(QtWidgets.QDockWidget, ui_spectrumHistory.Ui_DockWidget):
 			pass
 
 		#2D plot (surface)
-		self.win = QtGui.QMainWindow()
+		self.win = QtWidgets.QMainWindow()
 		self.win.resize(800,800)
 		imv = pg.ImageView()
 		self.win.setCentralWidget(imv)
@@ -110,7 +110,7 @@ class AppWindow(QtWidgets.QDockWidget, ui_spectrumHistory.Ui_DockWidget):
 
 
 	def saveAll(self):
-		directory = QtGui.QFileDialog.getExistingDirectory(self,"Select a folder to dump all spectra into", os.path.expanduser("~"),  QtGui.QFileDialog.ShowDirsOnly)
+		directory = QtWidgets.QFileDialog.getExistingDirectory(self,"Select a folder to dump all spectra into", os.path.expanduser("~"),  QtWidgets.QFileDialog.ShowDirsOnly)
 		print('dumping project to: ',directory)
 		if not len(self.history):return
 		x = np.array(range(len(self.history[0]['y'])))
@@ -161,6 +161,7 @@ class AppWindow(QtWidgets.QDockWidget, ui_spectrumHistory.Ui_DockWidget):
 					fits.append(None)
 					continue
 				Xmore,Y,par,FIT = res
+				FIT['col'] = R.col
 				fits.append(FIT)
 			result.append([data.get('time',0),data.get('temp',0),fits])
 		self.analysisBrowser.setHtml(htmlfy_fit(result))
@@ -179,11 +180,13 @@ class AppWindow(QtWidgets.QDockWidget, ui_spectrumHistory.Ui_DockWidget):
 					res = fitting.gausstailfit(x,data['y']-previous_y,R.region.getRegion())
 					previous_y = data['y']
 				else:
+					print(R.region.getRegion())
 					res = fitting.gausstailfit(x,data['y'],R.region.getRegion())
 				if res is None:
 					fits.append(None)
 					continue
 				Xmore,Y,par,FIT = res
+				FIT['col'] = R.col
 				fits.append(FIT)
 			result.append([data.get('time',0),data.get('temp',0),fits])
 		self.analysisBrowser.setHtml(htmlfy_fit(result))
